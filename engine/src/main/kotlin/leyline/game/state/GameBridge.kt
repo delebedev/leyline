@@ -54,7 +54,6 @@ import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
@@ -71,7 +70,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
@@ -270,60 +268,40 @@ class GameBridge(
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
 
-    /** Committed cross-frame annotation correlation. Projection writes only through a tentative planner. */
-    private val selectedSpellGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
-    private val selectedAdditionalCostGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
-    private val selectedAdditionalCosts = ConcurrentHashMap<ForgeCardId, SelectedAdditionalCost>()
-    private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
+    /** Ability identity state and lookups; [AbilityIdentities.ledger] counts how each lookup ended. */
+    val abilityIdentities = AbilityIdentities(cardRepository, ::abilityCardData)
 
     fun recordStackAbilityIdentity(
         runtimeAbilityId: Int,
         identity: ResolvedAbilityIdentity,
-    ) {
-        if (runtimeAbilityId != 0) {
-            stackAbilityIdentitiesByRuntimeId[runtimeAbilityId] = identity
-        }
-    }
+    ) = abilityIdentities.recordStackIdentity(runtimeAbilityId, identity)
 
-    fun stackAbilityIdentity(runtimeAbilityId: Int): ResolvedAbilityIdentity? = stackAbilityIdentitiesByRuntimeId[runtimeAbilityId]
+    fun stackAbilityIdentity(runtimeAbilityId: Int): ResolvedAbilityIdentity? = abilityIdentities.stackIdentity(runtimeAbilityId)
 
     fun consumeStackAbilityIdentity(runtimeAbilityId: Int): ResolvedAbilityIdentity? =
-        stackAbilityIdentitiesByRuntimeId.remove(runtimeAbilityId)
+        abilityIdentities.consumeStackIdentity(runtimeAbilityId)
 
     fun setSelectedSpellGrpId(
         cardId: ForgeCardId,
         grpId: Int?,
-    ) {
-        if (grpId == null) {
-            selectedSpellGrpIds.remove(cardId)
-        } else {
-            selectedSpellGrpIds[cardId] = grpId
-        }
-    }
+    ) = abilityIdentities.setSelectedSpellGrpId(cardId, grpId)
 
-    fun consumeSelectedSpellGrpId(cardId: ForgeCardId): Int? = selectedSpellGrpIds.remove(cardId)
+    fun consumeSelectedSpellGrpId(cardId: ForgeCardId): Int? = abilityIdentities.consumeSelectedSpellGrpId(cardId)
 
     fun setSelectedAdditionalCostGrpId(
         cardId: ForgeCardId,
         grpId: Int,
-    ) {
-        selectedAdditionalCostGrpIds[cardId] = grpId
-    }
+    ) = abilityIdentities.setSelectedAdditionalCostGrpId(cardId, grpId)
 
-    fun consumeSelectedAdditionalCostGrpId(cardId: ForgeCardId): Int? = selectedAdditionalCostGrpIds.remove(cardId)
+    fun consumeSelectedAdditionalCostGrpId(cardId: ForgeCardId): Int? = abilityIdentities.consumeSelectedAdditionalCostGrpId(cardId)
 
     fun setSelectedAdditionalCost(
         cardId: ForgeCardId,
         cost: SelectedAdditionalCost?,
-    ) {
-        if (cost == null) {
-            selectedAdditionalCosts.remove(cardId)
-        } else {
-            selectedAdditionalCosts[cardId] = cost
-        }
-    }
+    ) = abilityIdentities.setSelectedAdditionalCost(cardId, cost)
 
-    fun consumeSelectedAdditionalCost(cardId: ForgeCardId): SelectedAdditionalCost? = selectedAdditionalCosts.remove(cardId)
+    fun consumeSelectedAdditionalCost(cardId: ForgeCardId): SelectedAdditionalCost? =
+        abilityIdentities.consumeSelectedAdditionalCost(cardId)
 
     /** Read-only committed correlation for event collection and snapshot capture. */
     fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
@@ -335,60 +313,29 @@ class GameBridge(
 
     internal fun cardGrpId(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
 
-    private val selectedModalAbilityGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
-    private val pendingTriggerAbilityGrpIds = ConcurrentHashMap<Int, Int>()
-    private val pendingTriggerCleanupGrpIds = ConcurrentHashMap<Int, Int>()
-
     fun recordSelectedModalAbilityGrpId(
         source: ForgeCardId,
         abilityGrpId: Int,
-    ) {
-        selectedModalAbilityGrpIds[source] = abilityGrpId
-    }
+    ) = abilityIdentities.recordSelectedModalAbilityGrpId(source, abilityGrpId)
 
     fun resolvePendingTriggerAbilityIdentity(
         triggerId: Int,
         source: ForgeCardId,
         fallback: () -> Int?,
-    ): Int? =
-        pendingTriggerAbilityGrpIds[triggerId]
-            ?: (selectedModalAbilityGrpIds.remove(source) ?: fallback())?.also { resolved ->
-                pendingTriggerAbilityGrpIds[triggerId] = resolved
-            }
+    ): Int? = abilityIdentities.resolvePendingTriggerAbilityIdentity(triggerId, source, fallback)
 
-    fun retainPendingTriggerAbilityIdentities(triggerIds: Set<Int>) {
-        pendingTriggerAbilityGrpIds.keys.removeIf { it !in triggerIds }
-        pendingTriggerCleanupGrpIds.keys.removeIf { it !in triggerIds }
-    }
+    fun retainPendingTriggerAbilityIdentities(triggerIds: Set<Int>) = abilityIdentities.retainPendingTriggerAbilityIdentities(triggerIds)
 
     fun recordPendingTriggerCleanupIdentity(
         triggerId: Int,
         cleanupAbilityGrpId: Int,
-    ) {
-        pendingTriggerCleanupGrpIds[triggerId] = cleanupAbilityGrpId
-    }
+    ) = abilityIdentities.recordPendingTriggerCleanupIdentity(triggerId, cleanupAbilityGrpId)
 
-    fun pendingTriggerCleanupAbilityGrpId(triggerId: Int): Int? = pendingTriggerCleanupGrpIds[triggerId]
+    fun pendingTriggerCleanupAbilityGrpId(triggerId: Int): Int? = abilityIdentities.pendingTriggerCleanupAbilityGrpId(triggerId)
 
-    internal fun pendingTriggerAbilityGrpId(triggerId: Int): Int? = pendingTriggerAbilityGrpIds[triggerId]
+    internal fun pendingTriggerAbilityGrpId(triggerId: Int): Int? = abilityIdentities.pendingTriggerAbilityGrpId(triggerId)
 
-    internal fun resolveSpawningTriggerAbilityGrpId(trigger: Trigger): Int? {
-        val spawningAbility = trigger.spawningAbility ?: return null
-        val sourceCard = spawningAbility.hostCard?.effectSource ?: spawningAbility.hostCard ?: return null
-        return resolveAbilityIdentity(sourceCard, spawningAbility.rootAbility)?.abilityGrpId
-            ?: cardRepository
-                .findGrpIdByName(sourceCard.name)
-                ?.let(::soleTriggeredAbilityGrpId)
-    }
-
-    private fun soleTriggeredAbilityGrpId(cardGrpId: Int): Int? =
-        cardRepository
-            .findByGrpId(cardGrpId)
-            ?.abilityIds
-            .orEmpty()
-            .mapNotNull { (abilityGrpId, _) ->
-                abilityGrpId.takeIf { cardRepository.findAbilityInfo(it)?.category == 2 }
-            }.singleOrNull()
+    internal fun resolveSpawningTriggerAbilityGrpId(trigger: Trigger): Int? = abilityIdentities.spawningTriggerAbilityGrpId(trigger)
 
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
         projectionStateSnapshot().annotations.paradigmSourceStackIids[fid]
@@ -409,10 +356,6 @@ class GameBridge(
     }
 
     // --- Per-seat bridge maps ---
-
-    /** Forge cardId → AbilityRegistry for multi-ability abilityGrpId resolution. */
-    private val abilityRegistries = ConcurrentHashMap<Int, AbilityRegistry>()
-    private val grantedAbilityIds = ConcurrentHashMap<Int, GrantedAbilityIds>()
 
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
@@ -1313,49 +1256,21 @@ class GameBridge(
     fun abilityRegistryFor(
         card: Card,
         cardData: CardData?,
-    ): AbilityRegistry? {
-        if (cardData == null) return null
-        return abilityRegistries.compute(card.id) { _, cached ->
-            cached?.takeIf { it.sourceCardGrpId == cardData.grpId && it.matchesLiveSpellAbilities(card) }
-                ?: buildAbilityRegistry(card, cardData)
-        }
-    }
+    ): AbilityRegistry? = abilityIdentities.registryFor(card, cardData)
 
     @VisibleForTesting
-    internal fun cachedAbilityRegistryCardIds(): Set<ForgeCardId> = abilityRegistries.keys.mapTo(linkedSetOf(), ::ForgeCardId)
+    internal fun cachedAbilityRegistryCardIds(): Set<ForgeCardId> = abilityIdentities.cachedRegistryCardIds()
 
     @VisibleForTesting
-    internal fun grantedAbilityIdentityCardIds(): Set<ForgeCardId> = grantedAbilityIds.keys.mapTo(linkedSetOf(), ::ForgeCardId)
+    internal fun grantedAbilityIdentityCardIds(): Set<ForgeCardId> = abilityIdentities.grantedAbilityIdentityCardIds()
 
     @VisibleForTesting
-    internal fun clearAbilityRegistryCacheForTesting() {
-        abilityRegistries.clear()
-    }
+    internal fun clearAbilityRegistryCacheForTesting() = abilityIdentities.clearRegistries()
 
     fun resolveAbilityIdentity(
         card: Card,
         ability: SpellAbility,
-    ): ResolvedAbilityIdentity? {
-        if (ability.trigger == null) {
-            return AbilityRegistry.resolveSpellAbility(ability, ::abilityCardData, ::abilityRegistryFor)
-        }
-        val definition = AbilityDefinitionRef.Trigger(ability.trigger.definitionId)
-        val cardData = abilityCardData(card) ?: return null
-        val registry = abilityRegistryFor(card, cardData) ?: return null
-        registry.resolve(definition)?.let { return it }
-        val refreshed = buildAbilityRegistry(card, cardData)
-        abilityRegistries[card.id] = refreshed
-        return refreshed.resolve(definition)
-            ?: ability.trigger
-                ?.takeIf { it.isIntrinsic && it.spawningAbility == null }
-                ?.let { refreshed.resolveSoleIntrinsicTrigger(definition) }
-            ?: ability.trigger
-                ?.let { trigger ->
-                    pendingTriggerCleanupAbilityGrpId(trigger.id)
-                        ?: pendingTriggerAbilityGrpId(trigger.id)
-                        ?: resolveSpawningTriggerAbilityGrpId(trigger)
-                }?.let { ResolvedAbilityIdentity(definition, it) }
-    }
+    ): ResolvedAbilityIdentity? = abilityIdentities.lookup(card, ability).valueOrNull()
 
     internal fun openingHandAbilityGrpId(cardName: String): Int? {
         val grpId = cardRepository.findGrpIdByName(cardName) ?: return null
@@ -1371,40 +1286,12 @@ class GameBridge(
     private fun resolvePromptAbilityIdentity(
         card: Card,
         ability: SpellAbility,
-    ): ResolvedAbilityIdentity? {
-        val identity = resolveAbilityIdentity(card, ability)
-        val modalGrpId = selectedModalAbilityGrpIds[ForgeCardId(card.id)] ?: return identity
-        val definition =
-            ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
-                ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
-        return identity?.copy(abilityGrpId = modalGrpId) ?: ResolvedAbilityIdentity(definition, modalGrpId)
-    }
+    ): ResolvedAbilityIdentity? = abilityIdentities.lookupPrompt(card, ability).valueOrNull()
 
     fun resolveAbilityIdentity(
         card: Card,
         definition: AbilityDefinitionRef,
-    ): ResolvedAbilityIdentity? {
-        val cardData = abilityCardData(card) ?: return null
-        val registry = abilityRegistryFor(card, cardData) ?: return null
-        return registry.resolve(definition)
-            ?: buildAbilityRegistry(card, cardData).let { refreshed ->
-                abilityRegistries[card.id] = refreshed
-                refreshed.resolve(definition)
-            }
-    }
-
-    private fun buildAbilityRegistry(
-        card: Card,
-        cardData: CardData,
-    ): AbilityRegistry =
-        AbilityRegistry.build(
-            card,
-            cardData,
-            cardRepository::grantedKeywordAbilityGrpId,
-            grantedAbilityIds.computeIfAbsent(card.id) {
-                GrantedAbilityIds()
-            },
-        )
+    ): ResolvedAbilityIdentity? = abilityIdentities.lookup(card, definition).valueOrNull()
 
     private fun abilityCardData(card: Card): CardData? =
         if (card.isEmblem) {
@@ -1415,16 +1302,14 @@ class GameBridge(
         }
 
     /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
-    fun evictAbilityRegistry(forgeCardId: Int) {
-        abilityRegistries.remove(forgeCardId)
-    }
+    fun evictAbilityRegistry(forgeCardId: Int) = abilityIdentities.evictRegistry(forgeCardId)
 
     /** Shell-side cache invalidation for normalized state-frame facts. */
     fun invalidateAbilityRegistries(events: List<GameEvent>) {
         events.filterIsInstance<GameEvent.CardTransformed>().forEach { evictAbilityRegistry(it.cardId.value) }
         events.filterIsInstance<GameEvent.ZoneChanged>().forEach {
             evictAbilityRegistry(it.cardId.value)
-            if (it.from != it.to) grantedAbilityIds[it.cardId.value]?.retain(emptySet())
+            if (it.from != it.to) abilityIdentities.retireGrantedAbilityIds(it.cardId.value)
         }
     }
 
@@ -1793,14 +1678,8 @@ class GameBridge(
         val deletedIds = resetInstanceIds().map { it.value }
         pendingEarthbendResolutions.clear()
         nextEarthbendResolutionVersion = 1L
-        abilityRegistries.clear()
-        selectedModalAbilityGrpIds.clear()
-        pendingTriggerAbilityGrpIds.clear()
-        pendingTriggerCleanupGrpIds.clear()
-        stackAbilityIdentitiesByRuntimeId.clear()
-        selectedSpellGrpIds.clear()
-        selectedAdditionalCostGrpIds.clear()
-        selectedAdditionalCosts.clear()
+        abilityIdentities.clearRegistries()
+        abilityIdentities.clearChoices()
         tokenRegistry.clear()
         synchronized(projectionLock) {
             val prior = projectionState
@@ -1873,8 +1752,7 @@ class GameBridge(
         teardownResources()
         game = null
         players.clear()
-        abilityRegistries.clear()
-        grantedAbilityIds.clear()
+        abilityIdentities.clearCatalogState()
     }
 
     // --- Puzzle internals ---

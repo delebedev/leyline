@@ -69,6 +69,8 @@ fun statsToJson(
         append("\"skippedAlreadyTried\":${stats.skippedAlreadyTried},")
         append("\"offeredWhileUnsureByCard\":${mapToJson(stats.offeredWhileUnsureByCard)},")
         append("\"offeredThenPaymentFailedByCard\":${mapToJson(stats.offeredThenPaymentFailedByCard)},")
+        append("\"abilityLookupsBySource\":${mapToJson(stats.abilityLookupsBySource)},")
+        append("\"abilityLookupMisses\":${mapToJson(stats.abilityLookupMisses)},")
         append("\"connectMs\":${stats.connectMs},")
         append("\"stepTotalMs\":${stats.stepTotalMs},")
         append("\"stepMaxMs\":${stats.stepMaxMs},")
@@ -235,6 +237,22 @@ private fun simFindingsToJson(values: List<SimClientFinding>): String =
         }
     }
 
+/** Run-wide ability identity lookup outcomes, summed by `site/source` and `site/reason` across rows. */
+internal data class AbilityLookupTotals(
+    val bySource: Map<String, Int>,
+    val misses: Map<String, Int>,
+) {
+    fun toJson(): String = "{\"bySource\":${mapToJson(bySource)},\"misses\":${mapToJson(misses)}}"
+
+    companion object {
+        fun of(stats: List<GameStats>): AbilityLookupTotals =
+            AbilityLookupTotals(
+                AffordabilityTotals.sumByKey(stats.map { it.abilityLookupsBySource }),
+                AffordabilityTotals.sumByKey(stats.map { it.abilityLookupMisses }),
+            )
+    }
+}
+
 /** Run-wide affordability diagnostics, summed by card across rows. */
 internal data class AffordabilityTotals(
     val offeredWhileUnsure: Map<String, Int>,
@@ -257,7 +275,7 @@ internal data class AffordabilityTotals(
                 sumByKey(stats.map { it.offeredThenPaymentFailedByCard }),
             )
 
-        private fun sumByKey(maps: List<Map<String, Int>>): Map<String, Int> =
+        internal fun sumByKey(maps: List<Map<String, Int>>): Map<String, Int> =
             maps
                 .flatMap { it.entries }
                 .groupingBy { it.key }

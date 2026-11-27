@@ -3,8 +3,12 @@ package leyline.game.snapshot
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.spellability.SpellAbilityStackInstance
+import leyline.bridge.types.AbilityIdentitySource
+import leyline.bridge.types.AbilityLookup
+import leyline.bridge.types.AbilityLookupMiss
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneMapper
+import leyline.game.state.AbilityIdentityLedger
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
@@ -14,13 +18,13 @@ internal object StackAbilityGrpIdResolver {
      * Resolve the **ability** grpId for a stack entry — the row in the Arena
      * `Abilities` table that describes this trigger / activated SA. Resolution
      * order:
-     *  1. Saga chapter (trigger-row grpId from CardData; see
+     *  1. Cleanup row recorded for the entry's pending trigger.
+     *  2. Saga chapter (trigger-row grpId from CardData; see
      *     `ZoneMapper.chapterGrpIdFromCardData`).
-     *  2. Runtime-keyed identity recorded by the event lifecycle.
-     *  3. Typed definition lookup for entries that bypassed that lifecycle.
-     *  4. Explicit mechanic fallbacks for stack-only synthetic entries.
-     *  5. Default fallback → [sourceCardGrpId]. Preserves behavior for SAs
-     *     whose ability id we don't yet resolve.
+     *  3. Runtime-keyed identity recorded by the event lifecycle.
+     *  4. Typed definition lookup for entries that bypassed that lifecycle.
+     *  5. Explicit mechanic fallbacks for stack-only synthetic entries.
+     *  6. Default fallback → [sourceCardGrpId], recorded as a miss.
      *
      * Returns 0 only when [sourceCardGrpId] is itself 0 (no Arena printing for
      * the source card); callers apply [GameBridge.FALLBACK_GRPID].
@@ -31,15 +35,35 @@ internal object StackAbilityGrpIdResolver {
         sourceCard: Card,
         sourceCardGrpId: Int,
         bridge: GameBridge,
-    ): Int =
-        resolveChapterGrpId(entry, sourceCardGrpId, bridge)
-            ?: resolveParadigmDelayedGrpId(entry, sourceCard)
-            ?: pendingIdentityGrpId(entry, bridge)
-            ?: resolveStructuredIdentityGrpId(entry, sourceCard, bridge)
-            ?: decayedTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge)
-            ?: cascadeOrTrainingGrpId(entry, sourceCard)
-            ?: resolveDiscoverGrpId(entry, sourceCardGrpId, bridge)
-            ?: sourceCardGrpId
+    ): Int {
+        val lookup =
+            bridge.abilityIdentities.ledger.record(
+                AbilityIdentityLedger.Site.StackEntry,
+                lookupEntry(entry, sourceCard, sourceCardGrpId, bridge),
+            )
+        return lookup.valueOrNull() ?: sourceCardGrpId
+    }
+
+    private fun lookupEntry(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+        sourceCardGrpId: Int,
+        bridge: GameBridge,
+    ): AbilityLookup<Int> {
+        fun Int?.via(source: AbilityIdentitySource) = this?.let { AbilityLookup.Resolved(it, source) }
+        return bridge
+            .pendingTriggerCleanupAbilityGrpId(
+                entry.spellAbility.trigger?.id ?: 0,
+            ).via(AbilityIdentitySource.PendingTriggerCleanup)
+            ?: resolveChapterGrpId(entry, sourceCardGrpId, bridge).via(AbilityIdentitySource.SagaChapter)
+            ?: resolveParadigmDelayedGrpId(entry, sourceCard).via(AbilityIdentitySource.ParadigmDelayed)
+            ?: pendingIdentityGrpId(entry, bridge).via(AbilityIdentitySource.StackRecorded)
+            ?: resolveStructuredIdentityGrpId(entry, sourceCard, bridge).via(AbilityIdentitySource.AbilityIdentity)
+            ?: decayedTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge).via(AbilityIdentitySource.KeywordRow)
+            ?: cascadeOrTrainingGrpId(entry, sourceCard).via(AbilityIdentitySource.KeywordRow)
+            ?: resolveDiscoverGrpId(entry, sourceCardGrpId, bridge).via(AbilityIdentitySource.DiscoverTrigger)
+            ?: AbilityLookup.Missing(AbilityLookupMiss.SourceCardRow)
+    }
 
     private fun pendingIdentityGrpId(
         entry: SpellAbilityStackInstance,

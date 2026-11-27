@@ -2,6 +2,9 @@ package leyline.game.data
 
 import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
+import leyline.bridge.types.AbilityIdentitySource
+import leyline.bridge.types.AbilityLookup
+import leyline.bridge.types.AbilityLookupMiss
 import leyline.bridge.types.manaTokenToPair
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import kotlin.collections.iterator
@@ -333,11 +336,16 @@ object KeywordAbilityIds {
 }
 
 /** Use the granted keyword definition retained by Forge across casting and resolution. */
-internal fun CardRepository.grantedKeywordAbilityGrpId(sa: SpellAbility): Int? {
+internal fun CardRepository.grantedKeywordAbilityGrpId(sa: SpellAbility): Int? = lookupGrantedKeywordAbility(sa)?.valueOrNull()
+
+/** The granting card's row for a keyword a static granted to [sa]'s host; null when [sa] carries no granted keyword. */
+internal fun CardRepository.lookupGrantedKeywordAbility(sa: SpellAbility): AbilityLookup<Int>? {
     val keyword = sa.keyword ?: sa.trigger?.keyword ?: return null
     if (keyword.isIntrinsic || keyword.static == null) return null
-    val sourceGrpId = findGrpIdByName(keyword.static.hostCard.name) ?: return null
+    val sourceGrpId = findGrpIdByName(keyword.static.hostCard.name) ?: return AbilityLookup.Missing(AbilityLookupMiss.NoCardData)
     return findGrantedKeywordAbilityGrpId(sourceGrpId, grantedKeywordDefinition(keyword))
+        ?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.GrantedKeyword) }
+        ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow)
 }
 
 /**

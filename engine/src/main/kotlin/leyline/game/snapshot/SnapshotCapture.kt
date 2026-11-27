@@ -15,7 +15,6 @@ import leyline.game.annotations.CastAbilityWordScanner
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
-import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
@@ -276,9 +275,7 @@ object SnapshotCapture {
             val controllerSeat = bridge.seatOf(controller) ?: ownerSeat
             val sourceCardGrpId = resolveStackSourceCardGrpId(sourceCard, bridge)
             val runtimeTriggerId = entry.spellAbility.trigger?.id ?: 0
-            val grpId =
-                bridge.pendingTriggerCleanupAbilityGrpId(runtimeTriggerId)
-                    ?: StackAbilityGrpIdResolver.resolveEntryAbilityGrpId(entry, sourceCard, sourceCardGrpId, bridge)
+            val grpId = StackAbilityGrpIdResolver.resolveEntryAbilityGrpId(entry, sourceCard, sourceCardGrpId, bridge)
             val targets = entry.targetChoices?.targetCards?.map { ForgeCardId(it.id) } ?: emptyList()
             entries.add(
                 StackEntry(
@@ -661,7 +658,7 @@ object SnapshotCapture {
             currentLoyalty = if (onBf && type.isPlaneswalker) card.currentLoyalty else 0,
             isOnAdventure = card.isOnAdventure,
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
-            grantedCastAbilityGrpId = card.castSA?.let { bridge.cardRepository.grantedKeywordAbilityGrpId(it) },
+            grantedCastAbilityGrpId = card.castSA?.let { bridge.abilityIdentities.grantedKeywordAbilityGrpId(it) },
             evokePaid =
                 (onBf || card.isInZone(ForgeZoneType.Stack)) &&
                     card.castSA?.isEvoke == true,
