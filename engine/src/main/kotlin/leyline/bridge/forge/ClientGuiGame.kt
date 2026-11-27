@@ -784,9 +784,7 @@ class ClientGuiGame(
         title: String,
         cards: Iterable<CardView>,
         manipulable: Iterable<CardView>,
-        toTop: Boolean,
-        toBottom: Boolean,
-        toAnywhere: Boolean,
+        secondPile: ZoneType,
     ): MutableList<CardView> {
         // Return manipulable cards as-is: no reordering UI yet.
         log.warn("manipulateCardList: returning '{}' cards unchanged, no reordering UI", title)
