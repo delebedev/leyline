@@ -798,7 +798,10 @@ grouped by family, then by entity.
     `sourceId` is that ability on the stack and the first `CardId`
     parameter is its source card.
   - Leyline: sets `sourceId` and the `CardId` parameter both to the host
-    card, so the ability on the stack is never named.
+    card, so the ability on the stack is not named. The exception is a
+    resolving ability's unless cost of counters on its source, such as
+    Fabricate: there `sourceId` is the ability on the stack and the
+    `CardId` parameter is its source card.
   - Owner: `OptionalActionGate`, `BlockingInteractionMaterializer`
 - **`diverges`** — [OptionalActionMessage.card-parameters](prompts/OptionalActionMessage.md#OptionalActionMessage.card-parameters)
   - Contract: every outer prompt parameter is a `CardId` number.

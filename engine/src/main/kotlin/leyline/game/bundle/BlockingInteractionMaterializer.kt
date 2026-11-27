@@ -64,7 +64,11 @@ internal class BlockingInteractionMaterializer(
             val sourceId =
                 interaction.sourceId?.let { editor.identities.getOrAlloc(it).value }
                     ?: error("Optional interaction requires a source")
-            val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
+            val abilityId =
+                interaction.sourceAbilityForgeId?.let {
+                    editor.identities.peek(FrameIdResolver.triggerStackAbilityForgeId(it))?.value
+                }
+            val optional = OptionalActionMessage.newBuilder().setSourceId(abilityId ?: sourceId).build()
             val prompt =
                 optionalPrompt(interaction, sourceId)
             val link = counter.nextGameStateLink()
@@ -213,7 +217,14 @@ internal class BlockingInteractionMaterializer(
                 closesPlaybackFrame = true,
             )
         }
-        val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
+        // protocol: OptionalActionMessage.ability-source. The ability is named only when this
+        // projection carries it; the card parameter still names its source card.
+        val abilityId =
+            interaction.sourceAbilityForgeId?.let {
+                transition.nextState.identities.forgeIdToInstanceId[FrameIdResolver.triggerStackAbilityForgeId(it)]
+                    ?.value
+            }
+        val optional = OptionalActionMessage.newBuilder().setSourceId(abilityId ?: sourceId).build()
         val prompt =
             optionalPrompt(interaction, sourceId)
         return Prepared(

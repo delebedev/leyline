@@ -49,6 +49,8 @@ class OptionalActionGate(
      * @param defaultOnTimeout the value to return if the future times out (true for
      *   sites where auto-accepting is the safe fallback, false where auto-declining is)
      * @param logContext human-readable tag for timeout log lines (e.g. the override name)
+     * @param sourceAbilityForgeId the resolving stack ability that owns the optional effect,
+     *   when the effect belongs to one
      */
     @Suppress("UnusedParameter")
     fun await(
@@ -61,6 +63,7 @@ class OptionalActionGate(
         freeCast: BlockingInteraction.FreeCast? = null,
         etbPayLifeReplacement: Boolean = false,
         paymentCost: String? = null,
+        sourceAbilityForgeId: Int? = null,
     ): Boolean {
         if (hostCard == null) return true
         return interactionRuntime.awaitOptional(
@@ -72,6 +75,7 @@ class OptionalActionGate(
                 freeCast = freeCast,
                 etbPayLifeReplacement = etbPayLifeReplacement,
                 paymentCost = paymentCost,
+                sourceAbilityForgeId = sourceAbilityForgeId,
             ),
             sourceCard = hostCard,
             timeoutMs = actionBridge?.getTimeoutMs(),
