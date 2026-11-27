@@ -78,10 +78,11 @@ class MatchLifecycleRuntimeTest :
             assertSoftly {
                 batches.size shouldBe 2
                 batches[0].map { it.type } shouldBe
-                    listOf(
+                    listOfNotNull(
                         GREMessageType.ConnectResp_695e,
                         GREMessageType.DieRollResultsResp_695e,
                         GREMessageType.GameStateMessage_695e,
+                        GREMessageType.ChooseStartingPlayerReq_695e.takeIf { bridge.dieRollWinner == 1 },
                     )
                 batches[1].map { it.type } shouldBe listOf(GREMessageType.GameStateMessage_695e)
                 batches.flatten().map { it.msgId } shouldBe batches.flatten().map { it.msgId }.sorted()

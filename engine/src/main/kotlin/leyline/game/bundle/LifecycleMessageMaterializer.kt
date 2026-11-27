@@ -102,9 +102,10 @@ object LifecycleMessageMaterializer {
     /**
      * Initial GRE bundle — built dynamically.
      * Seat 1: ConnectResp + DieRollResults + GameState
-     * Seat 2: DieRollResults + GameState + ChooseStartingPlayerReq
+     * Seat 2: DieRollResults + GameState
+     * The die-roll winner's bundle also ends with ChooseStartingPlayerReq.
      *
-     * @param dieRollWinner which seat wins the die roll (1 or 2, default 2)
+     * @param dieRollWinner which seat wins the die roll and decides who starts (1 or 2, default 2)
      */
     internal fun initialBundle(
         seatId: SeatId,
@@ -121,10 +122,10 @@ object LifecycleMessageMaterializer {
         val messages = mutableListOf<GREToClientMessage>()
 
         // Wire sequencing (Arena protocol contract): the first-connecting seat (1)
-        // receives ConnectResp; the second (2) receives ChooseStartingPlayerReq.
-        // These literals are NOT role checks — they reflect the match-handshake
-        // sequence that Arena dictates, independent of which seat is human-controlled.
+        // receives ConnectResp. This literal is NOT a role check; it reflects the
+        // match-handshake sequence, independent of which seat is human-controlled.
         // Role-scoped decisions use `Seating` (see `GameBridge.seating`).
+        // protocol: ChooseStartingPlayerReq.decider: the die-roll winner chooses who starts.
         if (seatId == SeatId(1)) {
             // ConnectResp with deck + default settings
             messages.add(buildConnectResp(msgId++, seatId, deckMessage, bridge.priorityPolicy.currentSettings()))
@@ -134,7 +135,7 @@ object LifecycleMessageMaterializer {
         messages.add(buildDieRollResults(msgId++, dieRollWinner))
 
         // Full initial GameState
-        val shouldSendStartingPlayerPrompt = includeStartingPlayerPrompt && seatId == SeatId(2)
+        val shouldSendStartingPlayerPrompt = includeStartingPlayerPrompt && seatId == SeatId(dieRollWinner)
         val pendingCount = if (shouldSendStartingPlayerPrompt) 1 else 0 // ChooseStartingPlayerReq follows
         val priorProjection = bridge.projectionStateSnapshot()
         val (snapshotAndGsm, nextProjection) =
@@ -149,6 +150,7 @@ object LifecycleMessageMaterializer {
                         pendingCount,
                         seatId.value,
                         includeStartingPlayerDecision = includeStartingPlayerPrompt,
+                        startingPlayerDecider = dieRollWinner,
                     )
                 seedInitialProtoZones(editor, initialGsm, initSnap, bridge)
                 if (seedProjectionCursor) {
@@ -213,7 +215,7 @@ object LifecycleMessageMaterializer {
             includeStartingPlayerPrompt && viewers.any { it.role == ProjectionViewerRole.Player }
         val hasStartingPlayerRequest =
             hasStartingPlayerDecision &&
-                viewers.any { it.seatId == SeatId(2) && it.role == ProjectionViewerRole.Player }
+                viewers.any { it.seatId == SeatId(dieRollWinner) && it.role == ProjectionViewerRole.Player }
         val startingPlayerMsgId = if (hasStartingPlayerRequest) planner.nextMsgId() else null
         val prior = bridge.projectionStateSnapshot()
         val (messages, next) =
@@ -221,7 +223,8 @@ object LifecycleMessageMaterializer {
                 val snapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, matchId, 0)
                 viewers.map { viewer ->
                     val seatId = viewer.seatId
-                    val shouldPrompt = hasStartingPlayerRequest && viewer.role == ProjectionViewerRole.Player && seatId == SeatId(2)
+                    val shouldPrompt =
+                        hasStartingPlayerRequest && viewer.role == ProjectionViewerRole.Player && seatId == SeatId(dieRollWinner)
                     val deck = GsmBuilder.buildDeckMessage(bridge.getDeckGrpIds(seatId), bridge.getCommanderGrpIds(seatId))
                     val gsm =
                         GsmBuilder.buildInitialGameState(
@@ -232,6 +235,7 @@ object LifecycleMessageMaterializer {
                             pendingMessageCount = if (shouldPrompt) 1 else 0,
                             viewingSeatId = seatId.value.takeIf { viewer.role.seesSeatPrivateCards } ?: -1,
                             includeStartingPlayerDecision = hasStartingPlayerDecision,
+                            startingPlayerDecider = dieRollWinner,
                         )
                     seedInitialProtoZones(editor, gsm, snapshot, bridge)
                     editor.viewerCursors[seatId] =

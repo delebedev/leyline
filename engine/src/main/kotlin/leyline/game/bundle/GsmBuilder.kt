@@ -309,6 +309,7 @@ object GsmBuilder {
         pendingMessageCount: Int = 0,
         viewingSeatId: Int = 0,
         includeStartingPlayerDecision: Boolean = true,
+        startingPlayerDecider: Int = 2,
     ): GameStateMessage {
         val isBrawl = bridge.isBrawlOrCommander
         val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
@@ -346,15 +347,16 @@ object GsmBuilder {
                 .setFreeMulliganCount(freeMulliganCount)
                 .setDeckConstraintInfo(deckConstraints)
 
-        // Seat 2 has pending ChooseStartingPlayerResp during the normal two-seat handshake.
-        val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
-        val player2 = PlayerMapper.buildFromSnapshot(snap, 2)
-        val player2WithPendingDecision =
-            if (includeStartingPlayerDecision) {
-                player2.toBuilder().setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b).build()
+        // protocol: ChooseStartingPlayerReq.pending-type: only the deciding player has a pending
+        // ChooseStartingPlayerResp during the two-seat handshake.
+        fun withPendingDecision(player: PlayerInfo): PlayerInfo =
+            if (includeStartingPlayerDecision && player.systemSeatNumber == startingPlayerDecider) {
+                player.toBuilder().setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b).build()
             } else {
-                player2
+                player
             }
+        val player1 = withPendingDecision(PlayerMapper.buildFromSnapshot(snap, 1))
+        val player2 = withPendingDecision(PlayerMapper.buildFromSnapshot(snap, 2))
 
         val zones = mutableListOf<ZoneInfo>()
         // Shared zones (9)
@@ -404,12 +406,12 @@ object GsmBuilder {
                         .addPlayerIds(2)
                         .setStatus(TeamStatus.InGame_a458),
                 ).addPlayers(player1)
-                .addPlayers(player2WithPendingDecision)
+                .addPlayers(player2)
                 .addAllZones(zones.sortedBy { it.zoneId })
                 .addAllGameObjects(gameObjects)
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(GameStateUpdate.SendAndRecord)
-        if (includeStartingPlayerDecision) builder.setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
+        if (includeStartingPlayerDecision) builder.setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(startingPlayerDecider))
         if (pendingMessageCount > 0) builder.setPendingMessageCount(pendingMessageCount)
         return builder.build()
     }
