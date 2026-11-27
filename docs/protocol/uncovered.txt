@@ -80,8 +80,6 @@ ChoiceResult.before-resolution
 ChoiceResult.chooser-seat
 ChoiceResult.domain-sentiment
 ChooseStartingPlayerReq.candidates
-ChooseStartingPlayerReq.decider
-ChooseStartingPlayerReq.pending-type
 ChooseStartingPlayerReq.resp-candidate
 Cleave.offer
 Cleave.text-effect
