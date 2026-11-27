@@ -286,6 +286,21 @@ class TargetingCoordinator(
         sa: SpellAbility?,
     ): List<T> {
         if (optionList.isEmpty()) return emptyList()
+        val reveal = bridge.journal.activeRevealEntry()
+        if (reveal != null && optionList.isCoveredBy(reveal)) {
+            val message = revealChoiceMessage(sa, title)
+            val chosen =
+                chooseCardsViaBridgeForReveal(
+                    filteredCards = CardCollection(optionList.filterIsInstance<Card>()),
+                    min = min,
+                    max = max,
+                    sa = sa,
+                    reveal = reveal,
+                    message = message,
+                    recordExiledUnderSource = isExileUnderSourceRevealChoice(sa, message),
+                )
+            return optionList.filter { option -> chosen.any { it === option } }
+        }
         val labels = optionList.map { it.entityLabel() }
         val candidateRefs = buildCandidateRefs(optionList)
         val plan =
@@ -341,6 +356,12 @@ class TargetingCoordinator(
         }
         val indices = residual ?: bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
+    }
+
+    /** True when every option is a card the active reveal already shows the chooser. */
+    private fun Iterable<GameEntity>.isCoveredBy(reveal: leyline.bridge.handoff.PromptJournal.RevealEntry): Boolean {
+        val revealed = reveal.reveal.allHandCardIds.toSet()
+        return all { it is Card && ForgeCardId(it.id) in revealed }
     }
 
     private fun SpellAbility.hasParamValue(
