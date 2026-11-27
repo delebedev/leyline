@@ -4,6 +4,9 @@ import leyline.DevCheck
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.StackTargetGroup
+import leyline.game.mapping.PromptIds
+import leyline.game.snapshot.StackEntry
 import leyline.game.state.TargetSpec
 import leyline.game.state.TargetSpecKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -24,8 +27,68 @@ object TargetSpecContributor : AnnotationContributor {
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val pending = ctx.promptFacts.targetSpecs.map { it.spec }
-        return Contribution(persistent = mapOf(TargetSpecKind to buildTargetSpec(pending, ctx)))
+        val submitted = buildTargetSpec(pending, ctx)
+        return Contribution(persistent = mapOf(TargetSpecKind to submitted + buildStackTargetSpec(submitted, ctx)))
     }
+
+    /**
+     * Rows for chosen target groups of stack objects that no client submission
+     * recorded, such as an opponent's spell whose targets Forge chose. A group
+     * already published, or published by [buildTargetSpec] this frame, keeps
+     * its submitted row.
+     */
+    private fun buildStackTargetSpec(
+        submitted: List<AnnotationInfo>,
+        ctx: AnnotationContext,
+    ): List<AnnotationInfo> {
+        val stack = ctx.snap.stack
+        if (stack.entries.none { it.targetGroups.isNotEmpty() }) return emptyList()
+        val published =
+            (ctx.editor.persistentAnnotations.activeAnnotations.values + submitted)
+                .filter(TargetSpecKind::matches)
+                .mapTo(hashSetOf(), TargetSpecKind::identityKey)
+        return stack.entries
+            .filter { it.targetGroups.isNotEmpty() && it != stack.resolvingEntry }
+            .flatMap { entry ->
+                val affectorIid =
+                    if (entry.isSpell) {
+                        ctx.frameIds.cardIid(entry.forgeCardId)
+                    } else {
+                        InstanceId(ctx.stackAbilityIid(entry.forgeAbilityId, entry.forgeCardId))
+                    }
+                entry.targetGroups.mapNotNull { group ->
+                    if ((affectorIid.value to group.index) in published) return@mapNotNull null
+                    val targetIids =
+                        group.affectees.mapNotNull { affectee ->
+                            affectee.cardId?.let { ctx.frameIds.cardIid(ForgeCardId(it)) }
+                                ?: affectee.seatId?.let(::InstanceId)
+                        }
+                    if (targetIids.size != group.affectees.size) return@mapNotNull null
+                    val distributions = group.affectees.mapNotNull { it.distribution }
+                    AnnotationBuilder.targetSpec(
+                        instanceIds = targetIids,
+                        affectorId = affectorIid,
+                        abilityGrpId = GrpId(stackGroupAbilityGrpId(entry, group, ctx)),
+                        index = group.index,
+                        promptId = group.promptId,
+                        promptParameters = affectorIid.value,
+                        distributions = distributions.takeIf { it.size == targetIids.size }.orEmpty(),
+                    )
+                }
+            }
+    }
+
+    private fun stackGroupAbilityGrpId(
+        entry: StackEntry,
+        group: StackTargetGroup,
+        ctx: AnnotationContext,
+    ): Int =
+        when {
+            group.promptId == PromptIds.MUTATE_TARGET -> 0
+            group.abilityGrpId != 0 -> group.abilityGrpId
+            entry.isSpell -> ctx.environment.cardReferences.targetSpecAbilityGrpId(entry.sourceCardGrpId)
+            else -> entry.grpId
+        }
 
     private fun buildTargetSpec(
         pending: List<TargetSpec>,

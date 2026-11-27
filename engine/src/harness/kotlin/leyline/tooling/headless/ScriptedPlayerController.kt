@@ -1,5 +1,6 @@
 package leyline.tooling.headless
 
+import forge.ai.AiPlayDecision
 import forge.ai.PlayerControllerAi
 import forge.game.Game
 import forge.game.combat.Combat
@@ -210,6 +211,12 @@ class ScriptedPlayerController(
         val card =
             hand.cards.firstOrNull { it.name.equals(cardName, ignoreCase = true) }
                 ?: return null
-        return card.spellAbilities.firstOrNull { !it.isLandAbility && it.canPlay() }
+        val sa = card.spellAbilities.firstOrNull { !it.isLandAbility && it.canPlay() } ?: return null
+        // Forge AI chooses targets while evaluating a play; the script decides only which spell to cast.
+        if (sa.usesTargeting() && ai.canPlaySa(sa) != AiPlayDecision.WillPlay) {
+            log.warn("Script: CastSpell({}) — Forge AI found no targets", cardName)
+            return null
+        }
+        return sa
     }
 }

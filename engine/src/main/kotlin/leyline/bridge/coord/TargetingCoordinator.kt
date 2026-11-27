@@ -38,13 +38,13 @@ import leyline.bridge.interaction.ChooseSingleEntityPlanner
 import leyline.bridge.interaction.ChooseSingleEntityRoutePolicy
 import leyline.bridge.interaction.GroupedSearchClassifier
 import leyline.bridge.interaction.SpellAbilityShapes
+import leyline.bridge.interaction.TargetGroupShapes
 import leyline.bridge.interaction.UnclassifiedEntityChoicePolicy
 import leyline.bridge.interaction.candidateRefs
 import leyline.bridge.interaction.shouldAutoResolve
 import leyline.bridge.interaction.shouldReturnAll
 import leyline.bridge.interaction.sourceEntityId
 import leyline.bridge.interaction.unfilteredRefs
-import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.ResolvedAbilityIdentity
@@ -52,7 +52,6 @@ import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
-import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
 import leyline.game.mapping.ZoneIds
 import org.apache.commons.lang3.tuple.ImmutablePair
@@ -883,22 +882,12 @@ class TargetingCoordinator(
         val groupIndex = targetGroupIndex(sa)
         val isStackAbility = !isSpellTargeting(sa)
         val affectees =
-            targets.mapNotNull { target ->
-                when (target) {
-                    is Card ->
-                        InteractivePromptBridge.PendingTarget.TargetAffectee(
-                            targetForgeCardId = target.id,
-                            distribution = sa.getDividedValue(target),
-                        )
-                    is forge.game.player.Player -> {
-                        val seat = target.ownerSeat()
-                        InteractivePromptBridge.PendingTarget.TargetAffectee(
-                            targetSeatId = seat.value,
-                            distribution = sa.getDividedValue(target),
-                        )
-                    }
-                    else -> null
-                }
+            TargetGroupShapes.affectees(sa) { it.ownerSeat().value }.map { affectee ->
+                InteractivePromptBridge.PendingTarget.TargetAffectee(
+                    targetForgeCardId = affectee.cardId,
+                    targetSeatId = affectee.seatId,
+                    distribution = affectee.distribution,
+                )
             }
         if (affectees.isEmpty()) return emptyList()
         // Resolve the spell card's iid here, while the spell is still on the
@@ -967,58 +956,9 @@ class TargetingCoordinator(
     internal fun effectiveTargetPromptId(
         sa: SpellAbility,
         abilityIdentity: ResolvedAbilityIdentity? = bridge.resolveAbilityIdentity(sa),
-    ): Int =
-        when {
-            abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
-            sa.isMutate -> PromptIds.MUTATE_TARGET
-            else -> targetPromptId(sa) ?: PromptIds.SELECT_TARGETS
-        }
+    ): Int = TargetGroupShapes.promptId(sa, abilityIdentity)
 
-    internal fun targetGroupIndex(sa: SpellAbility): Int {
-        var index = 0
-        var current: SpellAbility? = sa.rootAbility
-        while (current != null) {
-            if (current.targetRestrictions != null) index++
-            if (current === sa) return index.coerceAtLeast(1)
-            current = current.subAbility
-        }
-        return 1
-    }
-
-    private fun targetPromptId(sa: SpellAbility): Int? {
-        val valid =
-            sa.targetRestrictions
-                ?.validTgts
-                ?.toList()
-                .orEmpty()
-        if (valid.isEmpty()) return null
-        val normalized = valid.map { it.lowercase() }
-        if (normalized == listOf("permanent.nonland")) return PromptIds.TARGET_NONLAND_PERMANENT
-        if (normalized == listOf("opponent")) return PromptIds.TARGET_OPPONENT
-        if (normalized == listOf("any")) return PromptIds.CHOOSE_ANY_TARGET
-        val allOpponentControlled = normalized.all { "youdontctrl" in it }
-        val targetKinds =
-            normalized
-                .flatMap { restriction ->
-                    buildList {
-                        if ("creature" in restriction) add("creature")
-                        if ("planeswalker" in restriction) add("planeswalker")
-                    }
-                }.toSet()
-        return when {
-            targetKinds == setOf("creature", "planeswalker") && allOpponentControlled ->
-                PromptIds.TARGET_CREATURE_OR_PLANESWALKER_YOU_DONT_CONTROL
-            targetKinds == setOf("creature") && normalized.all { "youctrl" in it && "youdontctrl" !in it } ->
-                PromptIds.TARGET_CREATURE_YOU_CONTROL
-            targetKinds == setOf("creature") && normalized.all { "oppctrl" in it } ->
-                PromptIds.TARGET_OPPONENT_CREATURE
-            targetKinds == setOf("creature") && allOpponentControlled ->
-                PromptIds.TARGET_CREATURE_YOU_DONT_CONTROL
-            targetKinds == setOf("creature") && normalized.none { "youctrl" in it || "youdontctrl" in it || "oppctrl" in it } ->
-                PromptIds.TARGET_CREATURE
-            else -> null
-        }
-    }
+    internal fun targetGroupIndex(sa: SpellAbility): Int = TargetGroupShapes.groupIndex(sa)
 
     private fun arrangeTopNCards(
         topN: CardCollection,

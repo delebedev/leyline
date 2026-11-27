@@ -2,6 +2,7 @@ package leyline.game.snapshot
 
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.StackTargetGroup
 
 data class StackSnapshot(
     /** Spell cards and abilities in Forge's top-first resolution order. */
@@ -53,6 +54,8 @@ data class StackEntry(
     val isActivatedAbility: Boolean = false,
     /** Card targets chosen for this stack item (may be empty). */
     val targets: List<ForgeCardId>,
+    /** Chosen target groups of this stack item, in group order (players included). */
+    val targetGroups: List<StackTargetGroup> = emptyList(),
     /**
      * Forge `SpellAbility.id` for this stack item. Drives SA-id-keyed
      * surrogate iid allocation via
