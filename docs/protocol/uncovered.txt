@@ -120,7 +120,6 @@ DeclareAttackersReq.empty-mana-cost
 DeclareAttackersReq.follows-state
 DeclareAttackersReq.prompt
 DeclareAttackersReq.recipients
-DeclareAttackersReq.resp-auto
 DeclareAttackersReq.selected-single-row
 DeclareAttackersReq.submit-commits
 DeclareBlockersReq.empty-mana-cost

@@ -732,14 +732,6 @@ grouped by family, then by entity.
     Enlist or Exert, so the request shows the selected row beside the
     creature's other rows.
   - Owner: `RequestBuilder.buildDeclareAttackersReq`
-- **`diverges`** — [DeclareAttackersReq.resp-auto](prompts/DeclareAttackersReq.md#DeclareAttackersReq.resp-auto)
-  - Contract: `autoDeclare=true` declares every creature with an ordinary
-    attack row against `autoDeclareDamageRecipient`.
-  - Leyline: ignores `autoDeclareDamageRecipient` and declares every attacker
-    against the default defending player, so a planeswalker named there is
-    never attacked.
-  - Owner: `CombatHandler.onDeclareAttackers`, `DeclarationAnswer`,
-    `RuntimeCombatWindow.nextAttackers`
 - **`compat`** — [Open points](prompts/DeclareAttackersReq.md#open-points), attack alternatives other than Enlist
   - Contract: unknown which `alternativeGrpId` other alternatives use.
   - Leyline: offers Exert as an extra attacker row whose `alternativeGrpId` is

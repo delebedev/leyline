@@ -64,15 +64,17 @@ internal class RuntimeCombatWindow(
         }
 
         if (answer.autoDeclare) {
-            val defaultSeat = playerBySeatId.entries.firstOrNull { it.value == defaultDefender }?.key ?: return null
-            val defaultRecipient =
-                DamageRecipient
-                    .newBuilder()
-                    .setType(DamageRecType.Player_a0e5)
-                    .setPlayerSystemSeatId(defaultSeat)
-                    .build()
+            val recipient =
+                answer.autoDeclareTarget?.let { resolveDamageRecipient(it) ?: return null } ?: run {
+                    val defaultSeat = playerBySeatId.entries.firstOrNull { it.value == defaultDefender }?.key ?: return null
+                    DamageRecipient
+                        .newBuilder()
+                        .setType(DamageRecType.Player_a0e5)
+                        .setPlayerSystemSeatId(defaultSeat)
+                        .build()
+                }
             return attackerByInstanceId.keys.associateWith {
-                RuntimeAttackerSelection(answer.attackAlternativeByAttacker[it] ?: 0, defaultRecipient)
+                RuntimeAttackerSelection(answer.attackAlternativeByAttacker[it] ?: 0, recipient)
             }
         }
 
