@@ -12,11 +12,13 @@ import forge.game.Game
 import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
+import forge.game.GameStage
 import forge.game.ability.AbilityKey
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
+import forge.game.card.CardFactoryUtil
 import forge.game.card.CardLists
 import forge.game.card.CardView
 import forge.game.combat.Combat
@@ -892,6 +894,9 @@ class PlayerController(
         val cntColors = colors.countColors()
         if (cntColors == 0) return 0
         if (cntColors == 1) return colors.color
+        // No prompt can reach the client before the opening hand. Forge asks here for a
+        // commander's wild-card color, so take the deck's most prominent offered color.
+        if (game.age == GameStage.BeforeMulligan) return pregameColor(colors)
         manaActivation?.let { activation ->
             if (sa?.rootAbility !== activation.ability) {
                 return staticChoiceCoordinator.chooseColor(message, sa, colors, askForManaAbility = true)
@@ -901,6 +906,12 @@ class PlayerController(
             if (selectedColor != null && colors.orderedColors.any { it.colorMask == selectedColor }) return selectedColor
         }
         return staticChoiceCoordinator.chooseColor(message, sa, colors)
+    }
+
+    private fun pregameColor(colors: ColorSet): Byte {
+        val prominent = CardFactoryUtil.getMostProminentColors(player.getCardsIn(ZoneType.Library)).toInt()
+        val offered = colors.orderedColors.map { it.colorMask }
+        return offered.firstOrNull { it.toInt() and prominent != 0 } ?: offered.first()
     }
 
     /**
