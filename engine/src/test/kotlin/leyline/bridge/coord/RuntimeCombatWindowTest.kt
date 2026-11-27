@@ -64,6 +64,36 @@ class RuntimeCombatWindowTest :
             }
         }
 
+        test("auto-declare sends every attacker at the named recipient and rejects an unknown one") {
+            val handles = handles()
+            val walker =
+                checkNotNull(
+                    handles.nextAttackers(
+                        DeclarationAnswer.Attackers.of(
+                            attackerInstanceIds = emptyList(),
+                            autoDeclare = true,
+                            autoDeclareTarget = DeclarationAnswer.Target.Planeswalker(301),
+                        ),
+                    ),
+                )
+            assertSoftly {
+                walker.keys shouldBe setOf(101, 102)
+                walker.values.map { it.damageRecipient.planeswalkerInstanceId }.distinct() shouldBe listOf(301)
+                handles
+                    .nextAttackers(
+                        DeclarationAnswer.Attackers.of(
+                            attackerInstanceIds = emptyList(),
+                            autoDeclare = true,
+                            autoDeclareTarget = DeclarationAnswer.Target.Planeswalker(999),
+                        ),
+                    ).shouldBeNull()
+                checkNotNull(handles.nextAttackers(DeclarationAnswer.Attackers.of(emptyList(), autoDeclare = true)))
+                    .values
+                    .map { it.damageRecipient.playerSystemSeatId }
+                    .distinct() shouldBe listOf(2)
+            }
+        }
+
         test("resolved player recipients use the retained Forge player identity") {
             val handles = handles()
             val answer =
@@ -83,7 +113,7 @@ class RuntimeCombatWindowTest :
                 attackerByInstanceId = mapOf(101 to ForgeCardId(11), 102 to ForgeCardId(12)),
                 legalAlternativesByAttacker = mapOf(101 to setOf(0, 7), 102 to setOf(0)),
                 blockerByInstanceId = mapOf(201 to ForgeCardId(21)),
-                targetCardByInstanceId = emptyMap(),
+                targetCardByInstanceId = mapOf(301 to ForgeCardId(31)),
                 playerBySeatId = mapOf(1 to ForgePlayerId(100), 2 to ForgePlayerId(200)),
                 defaultDefender = ForgePlayerId(200),
             )

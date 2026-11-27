@@ -84,6 +84,8 @@ sealed interface DeclarationAnswer {
         val attackAlternativeByAttacker: Map<Int, Int>,
         val defenderByAttacker: Map<Int, Target>,
         val autoDeclare: Boolean,
+        /** The recipient every auto-declared attacker attacks; null means the default defending player. */
+        val autoDeclareTarget: Target?,
     ) : DeclarationAnswer {
         companion object {
             fun of(
@@ -91,12 +93,14 @@ sealed interface DeclarationAnswer {
                 attackAlternativeByAttacker: Map<Int, Int> = emptyMap(),
                 defenderByAttacker: Map<Int, Target> = emptyMap(),
                 autoDeclare: Boolean = false,
+                autoDeclareTarget: Target? = null,
             ): Attackers =
                 Attackers(
                     attackerInstanceIds.toList(),
                     attackAlternativeByAttacker.toMap(),
                     defenderByAttacker.toMap(),
                     autoDeclare,
+                    autoDeclareTarget,
                 )
         }
     }

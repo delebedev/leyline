@@ -109,7 +109,16 @@ open class CombatHandler(
                 resp.selectedAttackersList.map { it.attackerInstanceId },
             )
             val pending = bridge.seat(counters.seatId).action.getPending() ?: return false
-            if (resp.selectedAttackersList.any {
+            val autoDeclareTarget =
+                if (resp.autoDeclare && resp.hasAutoDeclareDamageRecipient()) {
+                    resp.autoDeclareDamageRecipient.toDeclarationTarget()
+                } else {
+                    null
+                }
+            val unsupportedAutoRecipient =
+                resp.autoDeclare && resp.hasAutoDeclareDamageRecipient() && autoDeclareTarget == null
+            if (unsupportedAutoRecipient ||
+                resp.selectedAttackersList.any {
                     it.hasSelectedDamageRecipient() && it.selectedDamageRecipient.toDeclarationTarget() == null
                 }
             ) {
@@ -130,6 +139,7 @@ open class CombatHandler(
                     attackAlternativeByAttacker = resp.selectedAttackersList.associate { it.attackerInstanceId to it.alternativeGrpId },
                     defenderByAttacker = recipients,
                     autoDeclare = resp.autoDeclare,
+                    autoDeclareTarget = autoDeclareTarget,
                 )
             if (!bridge.cutCoordinator.updateDeclaration(pending.actionId, greMsg.gameStateId, answer)) {
                 log.warn("CombatHandler: attacker declaration did not match exact pending window")
