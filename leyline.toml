@@ -100,6 +100,10 @@
 # Endpoint for local prompt handling.
 # copilot_bridge_url = "http://127.0.0.1:8092"
 
+# Compare each priority window with Forge's ability enumeration and record the
+# differences. Simclient turns it on; off for local play.
+# offer_diff = true
+
 [paths]
 # Read-only bundled content root (decks, draft models, puzzles). Unset = this
 # file's directory.

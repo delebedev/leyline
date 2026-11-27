@@ -223,6 +223,14 @@ Start with these fields in `*.stats.json`:
 - `aiTimeoutsByDecision`: Forge AI searches that ran past their time limit, by decision.
 - `exceptionMessage`, `exceptionStackTop`: root cause when scout mode converted a crash into a stats row.
 - `deckOverlay`, `opponentDeckOverlay`: in-memory quarantine applied to a deck row.
+- `offerDiff`: each published priority window compared with Forge's ability
+  enumeration (`leyline.bridge.OfferDiff`). Findings are grouped by bucket,
+  card, zone and Forge API type, with the number of windows each appeared in:
+  `EnumerationGap` (Forge lists the play, Leyline never built a candidate),
+  `ProjectionDrop` (a candidate that became no offer), `OfferedInactive` and
+  `OfferedNotInForge`. Each finding names the `OfferDiffRule` that explains it;
+  a finding without a rule fails `--strict`, as does a comparison that threw.
+  `--no-offer-diff` turns the comparison off.
 
 Use logs only after stats tell you what to search for.
 

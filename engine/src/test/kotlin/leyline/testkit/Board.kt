@@ -5,7 +5,10 @@ import forge.game.card.Card
 import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import leyline.bridge.OfferDiffEntry
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.coord.OfferDiffProbe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
@@ -97,6 +100,23 @@ class Board(
                 .run(game, bridge, TEST_MATCH_ID, 0),
             bridge,
         )
+
+    /**
+     * The human player's current priority window compared with Forge's ability
+     * enumeration, through the same projection as [actions].
+     */
+    fun offerDiff(): List<OfferDiffEntry> {
+        val candidates = PriorityActionCandidates.query(game, human)
+        val projection =
+            ActionMapper.buildProjectionFromSnapshot(
+                SEAT_ID,
+                leyline.game.snapshot.SnapshotCapture
+                    .run(game, bridge, TEST_MATCH_ID, 0),
+                bridge,
+                candidates,
+            )
+        return OfferDiffProbe.compare(bridge, game, human, candidates, projection.offers, projection.actions)
+    }
 
     /** Add a card to a player's zone, registered so the bridge can resolve its instanceId. */
     fun addCard(

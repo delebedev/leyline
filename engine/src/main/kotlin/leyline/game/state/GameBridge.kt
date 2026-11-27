@@ -19,6 +19,7 @@ import forge.util.MyRandom
 import leyline.DevCheck
 import leyline.bridge.AffordabilityDiagnostics
 import leyline.bridge.CompanionAction
+import leyline.bridge.OfferDiffDiagnostics
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
@@ -134,6 +135,9 @@ class GameBridge(
 
     /** Offers made on uncertain affordability and offered actions whose payment failed. */
     val affordabilityDiagnostics = AffordabilityDiagnostics()
+
+    /** Differences between published priority windows and Forge's enumeration; filled when `engine.dev.offer_diff` is on. */
+    val offerDiffDiagnostics = OfferDiffDiagnostics()
 
     /** Puzzle application uses inert choices before journal/feed ownership starts. */
     private val setupBlockingInteractionRuntime =

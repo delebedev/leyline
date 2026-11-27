@@ -560,6 +560,7 @@ internal class MatchActionWindowRuntime(
                     owner.fail(ex)
                 }
             val promptGsId = result.actionGameStateId ?: result.messages.firstOrNull()?.gameStateId ?: planner.currentGsId()
+            OfferDiffProbe.recordWindow(owner.bridge, game, pending, result.actionOffers, result.messages)
             val created =
                 try {
                     createRuntimeActionWindow(

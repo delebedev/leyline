@@ -145,7 +145,7 @@ fun getAllCastableAbilities(
     return expanded.filter { it.canPlay() && it.canCastTiming(player) && permitsFixedCostSpell(it) }
 }
 
-private fun permitsFixedCostSpell(ability: SpellAbility): Boolean {
+internal fun permitsFixedCostSpell(ability: SpellAbility): Boolean {
     if (!ability.hasParam("ValidAfterStack")) return true
     val card = ability.hostCard
     // X-dependent permissions remain with Forge's final validation after the player chooses X.

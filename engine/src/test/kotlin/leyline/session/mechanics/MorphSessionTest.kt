@@ -8,6 +8,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.testkit.SessionTest
+import leyline.testkit.lostPlays
 import leyline.testkit.performAction
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -40,6 +41,7 @@ class MorphSessionTest :
                 "$card cast face down offers Special_TurnFaceUp and flips in place",
                 puzzle = morphPuzzle(card),
                 turns = 6,
+                offerDiff = true,
             ) {
                 val iid = bridge.instanceId(human.getZone(ZoneType.Hand).cards.single())
                 val faceDownCast =
@@ -56,6 +58,7 @@ class MorphSessionTest :
                         .cards
                         .single { it.isFaceDown }
                 val faceDownIid = bridge.instanceId(faceDown)
+                bridge.offerDiffDiagnostics.snapshot().lostPlays() shouldBe emptyList()
                 val turnUp =
                     offers().firstOrNull {
                         it.actionType == ActionType.SpecialTurnFaceUp_add3 && it.instanceId == faceDownIid

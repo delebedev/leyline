@@ -13,6 +13,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.beAltCostOffer
 import leyline.testkit.detailInt
 import leyline.testkit.haveManaCost
+import leyline.testkit.lostPlays
 import leyline.testkit.persistentAnnotationsOfType
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -46,7 +47,8 @@ class GrantedBlitzOfferTest :
                 .filter { it.actionType == ActionType.Cast && it.instanceId == iid }
         }
 
-        session("granted Blitz is offered only to creature spells with mana value 4 or greater", puzzle = puzzle) {
+        session("granted Blitz is offered only to creature spells with mana value 4 or greater", puzzle = puzzle, offerDiff = true) {
+            bridge.offerDiffDiagnostics.snapshot().lostPlays() shouldBe emptyList()
             val etali = castOffers("Etali, Primal Conqueror")
             val blitz = etali.single { it.alternativeGrpId != 0 }
             assertSoftly {
@@ -101,7 +103,8 @@ class GrantedBlitzOfferTest :
             ailibrary=Lightning Bolt;Island;Island;Island
             """.trimIndent()
 
-        session("a commander keeps its ordinary cast beside granted Blitz", puzzle = commanderPuzzle) {
+        session("a commander keeps its ordinary cast beside granted Blitz", puzzle = commanderPuzzle, offerDiff = true) {
+            bridge.offerDiffDiagnostics.snapshot().lostPlays() shouldBe emptyList()
             val iid = instanceIdOf("Etali, Primal Conqueror", zone = ZoneType.Command)
             val etali =
                 allMessages

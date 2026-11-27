@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import leyline.testkit.lostPlays
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -38,6 +39,7 @@ class GrantedAlternativeCostActionTest :
                     addCard("Opt", human, ZoneType.Hand)
                     addCard("Shock", human, ZoneType.Hand)
                 }
+            board.offerDiff().lostPlays() shouldBe emptyList()
             val drake = board.casts("Wind Drake")
             val goblin = board.casts("Raging Goblin")
             assertSoftly {
@@ -57,6 +59,7 @@ class GrantedAlternativeCostActionTest :
                     addCard("Wind Drake", human, ZoneType.Hand)
                     addCard("Opt", human, ZoneType.Hand)
                 }
+            board.offerDiff().lostPlays() shouldBe emptyList()
             val drake = board.casts("Wind Drake")
             assertSoftly {
                 drake.map { it.alternativeGrpId }.sorted() shouldBe listOf(0, drake.maxOf { it.alternativeGrpId })
@@ -86,6 +89,7 @@ class GrantedAlternativeCostActionTest :
                     ailibrary=Forest
                     """.trimIndent(),
                 )
+            board.offerDiff().lostPlays() shouldBe emptyList()
             val drake = board.casts("Wind Drake")
             assertSoftly {
                 drake.map { it.alternativeGrpId }.sorted() shouldBe listOf(0, drake.maxOf { it.alternativeGrpId })

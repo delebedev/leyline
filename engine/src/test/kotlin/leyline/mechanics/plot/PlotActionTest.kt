@@ -14,6 +14,7 @@ import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
 import leyline.testkit.humanPlayer
+import leyline.testkit.lostPlays
 import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -155,6 +156,7 @@ class PlotActionTest :
             val plottedAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
+            board.offerDiff().lostPlays() shouldBe emptyList()
             val plotOffer = board.actions().actionsList.firstOrNull { it.alternativeGrpId == plottedAbilityGrpId }
             assertSoftly {
                 plotOffer should beAltCostOffer(plottedAbilityGrpId)
@@ -177,6 +179,7 @@ class PlotActionTest :
             val plottedAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
+            board.offerDiff().lostPlays() shouldBe emptyList()
             val castOffers = board.actions().actionsList.filter { it.actionType == ActionType.Cast && it.grpId == brawlerGrpId }
             assertSoftly {
                 castOffers.map { it.alternativeGrpId } shouldBe listOf(plottedAbilityGrpId)
