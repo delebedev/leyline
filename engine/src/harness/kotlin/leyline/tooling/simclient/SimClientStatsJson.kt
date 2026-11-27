@@ -71,6 +71,7 @@ fun statsToJson(
         append("\"offeredThenPaymentFailedByCard\":${mapToJson(stats.offeredThenPaymentFailedByCard)},")
         append("\"abilityLookupsBySource\":${mapToJson(stats.abilityLookupsBySource)},")
         append("\"abilityLookupMisses\":${mapToJson(stats.abilityLookupMisses)},")
+        append("\"abilityRowMismatches\":${mapToJson(stats.abilityRowMismatches)},")
         append("\"connectMs\":${stats.connectMs},")
         append("\"stepTotalMs\":${stats.stepTotalMs},")
         append("\"stepMaxMs\":${stats.stepMaxMs},")
@@ -241,14 +242,17 @@ private fun simFindingsToJson(values: List<SimClientFinding>): String =
 internal data class AbilityLookupTotals(
     val bySource: Map<String, Int>,
     val misses: Map<String, Int>,
+    val rowMismatches: Map<String, Int>,
 ) {
-    fun toJson(): String = "{\"bySource\":${mapToJson(bySource)},\"misses\":${mapToJson(misses)}}"
+    fun toJson(): String =
+        "{\"bySource\":${mapToJson(bySource)},\"misses\":${mapToJson(misses)},\"rowMismatches\":${mapToJson(rowMismatches)}}"
 
     companion object {
         fun of(stats: List<GameStats>): AbilityLookupTotals =
             AbilityLookupTotals(
                 AffordabilityTotals.sumByKey(stats.map { it.abilityLookupsBySource }),
                 AffordabilityTotals.sumByKey(stats.map { it.abilityLookupMisses }),
+                AffordabilityTotals.sumByKey(stats.map { it.abilityRowMismatches }),
             )
     }
 }

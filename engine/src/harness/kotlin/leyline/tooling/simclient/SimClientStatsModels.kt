@@ -75,6 +75,8 @@ data class GameStats(
     val abilityLookupsBySource: Map<String, Int> = emptyMap(),
     /** Ability identity lookups that found no row, keyed `site/reason`. */
     val abilityLookupMisses: Map<String, Int> = emptyMap(),
+    /** Resolved ability rows that disagree with their Forge ability, keyed `site/card: disagreement`. */
+    val abilityRowMismatches: Map<String, Int> = emptyMap(),
 )
 
 data class PromptRouteFinding(

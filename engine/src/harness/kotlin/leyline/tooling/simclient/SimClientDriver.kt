@@ -277,6 +277,9 @@ class SimClientDriver(
             abilityLookupMisses =
                 harness.bridge.abilityIdentities.ledger
                     .missedByReason(),
+            abilityRowMismatches =
+                harness.bridge.abilityIdentities.ledger
+                    .rowMismatches(),
         )
     }
 

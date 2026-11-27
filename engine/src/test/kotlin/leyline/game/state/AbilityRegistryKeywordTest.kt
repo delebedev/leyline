@@ -19,15 +19,19 @@ import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.game.InMemoryCardRepository
 import leyline.game.codes.SlotKind
+import leyline.game.data.AbilityInfo
 import leyline.game.data.CardData
 import leyline.game.data.ForgeCardRepository
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.data.catalogKeywords
 import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ActivatedActionEmitter
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
+import leyline.testkit.TestCardInjector
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 
@@ -280,4 +284,84 @@ class AbilityRegistryKeywordTest :
                 registry.forSpellAbility(granted) shouldBe expectedGrant
             }
         }
-    })
+
+        test("intrinsic keywords take the catalog row that names the same keyword wherever the catalog puts it") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val emrakul = TestCardInjector.inject(bridge, 2, "Emrakul, the Aeons Torn", ZoneType.Battlefield).card
+            val repository = emrakulCatalog()
+            val data = checkNotNull(repository.findByGrpId(EMRAKUL_GRP_ID))
+            val annihilator =
+                emrakul
+                    .getKeywords()
+                    .single { it.keyword == Keyword.ANNIHILATOR }
+                    .triggers
+                    .single()
+            val printedTriggers = emrakul.triggers.filter { it.isIntrinsic && it.keyword == null }
+            val registry = AbilityRegistry.build(emrakul, data, rowKeywords = repository::catalogKeywords)
+
+            assertSoftly {
+                registry.forTrigger(annihilator.definitionId) shouldBe ANNIHILATOR_SIX_ROW
+                printedTriggers shouldHaveSize 2
+                printedTriggers.map { registry.forTrigger(it.definitionId) }.toSet() shouldBe setOf(15698, 1330)
+            }
+        }
+
+        test("positional keyword rows give Annihilator Flying's row and the row check counts it") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val emrakul = TestCardInjector.inject(bridge, 2, "Emrakul, the Aeons Torn", ZoneType.Battlefield).card
+            val repository = emrakulCatalog()
+            val annihilator =
+                emrakul
+                    .getKeywords()
+                    .single { it.keyword == Keyword.ANNIHILATOR }
+                    .triggers
+                    .single()
+            val ability = annihilator.ensureAbility().also { it.trigger = annihilator }
+            val positional = AbilityRegistry.build(emrakul, checkNotNull(repository.findByGrpId(EMRAKUL_GRP_ID)))
+            val positionalRow = checkNotNull(positional.forTrigger(annihilator.definitionId))
+            val ledger = AbilityIdentityLedger(RowAgreement(repository))
+
+            ledger.checkRow(AbilityIdentityLedger.Site.Trigger, ability, positionalRow)
+            ledger.checkRow(AbilityIdentityLedger.Site.Trigger, ability, ANNIHILATOR_SIX_ROW)
+
+            assertSoftly {
+                positionalRow shouldBe FLYING_ROW
+                ledger.rowMismatches() shouldBe mapOf("trigger/Emrakul, the Aeons Torn: Annihilator keyword on row $FLYING_ROW" to 1)
+            }
+        }
+    }) {
+    private companion object {
+        const val EMRAKUL_GRP_ID = 51281
+        const val FLYING_ROW = 8
+        const val ANNIHILATOR_SIX_ROW = 15700
+
+        /**
+         * Emrakul's catalog shape: its keywords sit between its triggers and statics, and Annihilator and
+         * Protection chain to their keyword base rows.
+         */
+        fun emrakulCatalog(): InMemoryCardRepository {
+            val rows = listOf(138085 to 3, 15698 to 2, FLYING_ROW to 3, 381 to 3, ANNIHILATOR_SIX_ROW to 2, 1330 to 2)
+            val bases = mapOf(381 to 21, ANNIHILATOR_SIX_ROW to 87)
+            return InMemoryCardRepository().apply {
+                registerData(
+                    CardData(
+                        grpId = EMRAKUL_GRP_ID,
+                        titleId = 0,
+                        power = "15",
+                        toughness = "15",
+                        colors = emptyList(),
+                        types = emptyList(),
+                        subtypes = emptyList(),
+                        supertypes = emptyList(),
+                        manaCost = emptyList(),
+                        abilityIds = rows.map { it.first to 0 },
+                        abilityKinds = rows.map { SlotKind.fromCategory(it.second) },
+                        abilityCategories = rows.map { it.second },
+                    ),
+                    "Emrakul, the Aeons Torn",
+                )
+                rows.forEach { (id, category) -> registerAbilityInfo(id, AbilityInfo(bases[id] ?: 0, emptyList(), category)) }
+            }
+        }
+    }
+}
