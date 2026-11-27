@@ -230,12 +230,14 @@ object ActionMapper {
 
     @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
     private fun buildProjection(
-        seatId: Int,
+        receiverSeatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
         priorityCandidates: PriorityActionCandidates?,
         activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>>,
     ): ActionProjection {
+        // A controlling seat is offered the controlled player's actions with that player's resources (CR 723.5a).
+        val seatId = snap.prioritySeatDecidedBy(SeatId(receiverSeatId)).value
         val builder = ActionsAvailableReq.newBuilder()
         val offers = mutableListOf<ActionOffer>()
         val player = bridge.getPlayer(SeatId(seatId))

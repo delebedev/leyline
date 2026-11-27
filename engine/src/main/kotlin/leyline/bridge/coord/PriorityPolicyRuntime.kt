@@ -25,6 +25,8 @@ internal data class PriorityWindowObservation(
     val turn: Int = 0,
     val playerId: Int = 1,
     val stack: List<PriorityStackObject> = emptyList(),
+    /** Player whose phase stops apply: the controlling player while [playerId] is controlled (CR 723.5). */
+    val stopOwnerId: Int = playerId,
 )
 
 internal sealed interface PriorityWindowDecision {
@@ -243,7 +245,7 @@ class PriorityPolicyRuntime(
                         observation.stack.firstOrNull()?.controllerId == observation.playerId -> PriorityWindowReason.OWN_STACK
                     !observation.stackEmpty -> PriorityWindowReason.OPPONENT_STACK
                     !observation.isOwnTurn -> PriorityWindowReason.OPPONENT_RESPONSE
-                    observation.phase in enabledPhaseStops(observation.playerId) -> PriorityWindowReason.ENABLED_PHASE
+                    observation.phase in enabledPhaseStops(observation.stopOwnerId) -> PriorityWindowReason.ENABLED_PHASE
                     else -> PriorityWindowReason.PHASE_NOT_ENABLED
                 }
             val visible = reason.visible

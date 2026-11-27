@@ -291,6 +291,7 @@ Leyline cannot play at all is `absent`.
 | Opus | `OpusAbilityWordFeedBuilder`, `CastAbilityWordScanner` | `implemented` |
 | [Overload](mechanics/Overload.md) | `CastRails`, `GameEventCollector` | `partial` |
 | [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
+| PlayerControl | `PriorityLoopCoordinator`, `ActionMapper`, `SnapshotCapture`, `ZoneMapper` | `partial` |
 | [PowerUp](mechanics/PowerUp.md) | `AbilityExhaustionFactsCapture` | `implemented` |
 | Proliferate | `ChooseEntitiesPlanner` | `implemented` |
 | [Prowess](mechanics/Prowess.md) | `AnnotationPipeline`, `EffectTracker` | `partial` |
@@ -1624,6 +1625,27 @@ one `NonLocalizedString` parameter named `Choice` per option, aligned with
 `ids`. The response selects the option by its index.
 
 - Owner: `StaticChoiceWindowMaterializer.buildRequest`, `StaticChoiceWindowCapture`
+
+### Controlled player
+
+While one seat controls another player (CR 723), such as during a turn
+granted by Emrakul, the Promised End or Mindslaver, the controlling seat makes
+that player's decisions:
+
+- the controlled player's priority windows go to the controlling seat as an
+  `ActionsAvailableReq` listing the controlled player's actions, paid with
+  that player's resources (CR 723.5a); phase stops are the controlling seat's
+  own-turn stops;
+- the controlled player's hand zone lists the controlling seat as a viewer,
+  and their hand cards and any card they may look at, such as their top
+  library card, are sent to the controlling seat as objects with that seat
+  among the `viewers` (CR 723.4);
+- when control ends, those objects are sent to the controlling seat again
+  without their card identity.
+
+Face-down permanents the controlled player controls keep their usual viewers.
+
+- Owner: `PriorityLoopCoordinator`, `ActionMapper`, `SnapshotCapture`, `ZoneMapper`
 
 ## Maintaining this map
 

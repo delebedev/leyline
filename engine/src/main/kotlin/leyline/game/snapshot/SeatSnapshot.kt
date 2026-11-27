@@ -27,6 +27,8 @@ data class SeatSnapshot(
     val hasBlessing: Boolean = false,
     val manaPool: List<ManaPoolEntry> = emptyList(),
     val companion: CompanionSnapshot? = null,
+    /** Seat making this player's decisions under a player-control effect (CR 723); null while self-controlled. */
+    val controllingSeat: SeatId? = null,
 )
 
 /** Original designation identity remains stable when the playable card changes zones. */

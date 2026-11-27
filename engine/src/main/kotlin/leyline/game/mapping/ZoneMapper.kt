@@ -60,8 +60,7 @@ object ZoneMapper {
                 .setType(ZoneType.Hand)
                 .setOwnerSeatId(seatId.value)
                 .setVisibility(handVisibility)
-                .addViewers(seatId.value)
-        if (revealHand) handBuilder.addViewers(seatId.opponent.value)
+                .addAllViewers(handZoneViewers(seatId, snap, revealHand))
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
             val instanceId = instanceIdLookup(fid).value
             handBuilder.addObjectInstanceIds(instanceId)
@@ -227,6 +226,24 @@ object ZoneMapper {
         }
         zones.add(library.build())
     }
+
+    /**
+     * Hand zone viewers: the owner, the opponent while the hand is revealed, and a seat
+     * controlling the owner (CR 723.4). Hand card objects follow each card's mayLookSeatIds.
+     */
+    private fun handZoneViewers(
+        seatId: SeatId,
+        snap: GsmSnapshot,
+        revealHand: Boolean,
+    ): Set<Int> =
+        buildSet {
+            add(seatId.value)
+            if (revealHand) add(seatId.opponent.value)
+            snap.seats
+                .firstOrNull { it.seatId == seatId }
+                ?.controllingSeat
+                ?.let { add(it.value) }
+        }
 
     internal fun hiddenCardObject(
         instanceId: Int,

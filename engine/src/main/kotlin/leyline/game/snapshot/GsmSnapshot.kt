@@ -55,6 +55,13 @@ class GsmSnapshot internal constructor(
         boundCards.mapValues { it.value.snapshot }
     }
 
+    /**
+     * The player whose priority decision [receiver] answers: the priority player when
+     * [receiver] controls that player (CR 723.5), otherwise [receiver].
+     */
+    fun prioritySeatDecidedBy(receiver: SeatId): SeatId =
+        phase.priorityPlayer?.takeIf { priority -> seats.any { it.seatId == priority && it.controllingSeat == receiver } } ?: receiver
+
     internal fun withGameStateId(gameStateId: Int): GsmSnapshot =
         if (gameStateId == this.gameStateId) {
             this
