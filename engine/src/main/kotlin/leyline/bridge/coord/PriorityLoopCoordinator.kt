@@ -81,6 +81,7 @@ class PriorityLoopCoordinator(
                         isOwnTurn = isOwnTurn,
                         turn = handler.turn,
                         playerId = player.id,
+                        stopOwnerId = player.controllingPlayer?.takeIf { player.isControlled }?.id ?: player.id,
                         stack = game.stack.map { PriorityStackObject(it.id, it.activatingPlayer.id) },
                         phase = handler.phase,
                         smartPhaseSkip = smartPhaseSkip,

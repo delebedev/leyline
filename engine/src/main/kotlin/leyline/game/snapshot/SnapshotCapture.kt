@@ -61,6 +61,7 @@ object SnapshotCapture {
                     dungeon = DungeonSnapshot.capture(player, bridge),
                     hasBlessing = player.hasBlessing(),
                     manaPool = ManaSnapshotCapture.capturePool(player, bridge),
+                    controllingSeat = player.controllingPlayer?.takeIf { player.isControlled }?.let(bridge::seatOf),
                     companion =
                         CompanionAction.chosenCard(player)?.let { source ->
                             val fid = ForgeCardId(source.id)
@@ -218,6 +219,22 @@ object SnapshotCapture {
     }
 
     // --- Phase And Stack Capture ---
+
+    /**
+     * A player controlling the card's controller sees hidden-zone information that player
+     * sees (CR 723.4), such as their hand and a top library card they may look at.
+     */
+    private fun seesThroughControlledPlayer(
+        card: Card,
+        viewer: Player,
+    ): Boolean {
+        val controlled = card.controller ?: return false
+        if (!controlled.isControlled || controlled.controllingPlayer != viewer) return false
+        val zone = card.zone?.zoneType ?: return false
+        return zone in CONTROLLED_VIEW_ZONES && card.view.canBeShownTo(controlled.view)
+    }
+
+    private val CONTROLLED_VIEW_ZONES = setOf(ForgeZoneType.Hand, ForgeZoneType.Library, ForgeZoneType.Exile)
 
     /**
      * Snapshot turn/phase/priority state from [game.phaseHandler].
@@ -558,7 +575,7 @@ object SnapshotCapture {
         val controllerSeat = bridge.seatOf(card.controller) ?: ownerSeat
         val mayLookSeatIds =
             listOf(SeatId(1), SeatId(2)).filterTo(linkedSetOf()) { seatId ->
-                bridge.getPlayer(seatId)?.let(card::mayPlayerLook) == true
+                bridge.getPlayer(seatId)?.let { card.mayPlayerLook(it) || seesThroughControlledPlayer(card, it) } == true
             }
 
         // ActionMapper shape flags — read once here, not in the mapper.

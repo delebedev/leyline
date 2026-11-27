@@ -287,6 +287,16 @@ class PriorityPolicyRuntimeTest :
                 policy.visible(observation(meaningful = true)).shouldBeFalse()
             }
         }
+
+        test("a controlled player's own turn uses the controlling player's phase stops") {
+            assertSoftly {
+                val policy = runtime()
+                policy.classifyPriorityWindow(observation(meaningful = true).copy(playerId = 2, stopOwnerId = 1)) shouldBe
+                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+                policy.classifyPriorityWindow(observation(meaningful = true).copy(playerId = 2, stopOwnerId = 2)) shouldBe
+                    PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
+            }
+        }
     })
 
 private fun observation(
