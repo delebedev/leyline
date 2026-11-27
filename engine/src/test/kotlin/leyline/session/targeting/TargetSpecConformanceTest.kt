@@ -3,12 +3,14 @@ package leyline.session.targeting
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.PromptIds
 import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.ScriptedAction
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 @FixturePinned
@@ -134,6 +136,66 @@ class TargetSpecConformanceTest :
             assertSoftly {
                 targetSpec.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
                 targetSpec.detailInt("promptId") shouldBe PromptIds.TARGET_OPPONENT
+            }
+        }
+
+        session(
+            "opponent spell targeting a creature carries TargetSpec while the player holds priority",
+            puzzle = """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Giant Growth
+                humanbattlefield=Grizzly Bears;Forest
+                humanlibrary=Forest;Forest
+                aihand=Murder
+                aibattlefield=Swamp;Swamp;Swamp
+                ailibrary=Swamp;Swamp
+                """,
+            aiScript = listOf(ScriptedAction.CastSpell("Murder"), ScriptedAction.PassPriority),
+            forgeCatalog = true,
+        ) {
+            val bearsIid = human.battlefield.iid("Grizzly Bears")
+            passUntil { game().stackZone.size() > 0 } shouldBe true
+            val stackIid = ai.hand.iid(game().stackZone.cards.single())
+
+            val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).distinctBy { it.id }.single()
+            assertSoftly {
+                allMessages.last().hasActionsAvailableReq() shouldBe true
+                targetSpec.affectorId shouldBe stackIid
+                targetSpec.affectedIdsList shouldBe listOf(bearsIid)
+                targetSpec.detailInt("index") shouldBe 1
+                targetSpec.detailInt("promptParameters") shouldBe stackIid
+                targetSpec.detailInt("abilityGrpId") shouldNotBe 0
+            }
+        }
+
+        session(
+            "opponent spell targeting a player carries TargetSpec with the seat",
+            puzzle = """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Giant Growth
+                humanbattlefield=Grizzly Bears;Forest
+                humanlibrary=Forest;Forest
+                aihand=Lava Spike
+                aibattlefield=Mountain
+                ailibrary=Mountain;Mountain
+                """,
+            aiScript = listOf(ScriptedAction.CastSpell("Lava Spike"), ScriptedAction.PassPriority),
+            forgeCatalog = true,
+        ) {
+            passUntil { game().stackZone.size() > 0 } shouldBe true
+            val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).distinctBy { it.id }.single()
+            assertSoftly {
+                allMessages.last().hasActionsAvailableReq() shouldBe true
+                targetSpec.affectorId shouldBe ai.hand.iid(game().stackZone.cards.single())
+                targetSpec.affectedIdsList shouldBe listOf(HUMAN_SEAT)
             }
         }
     })

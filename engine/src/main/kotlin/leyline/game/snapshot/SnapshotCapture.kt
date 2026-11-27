@@ -5,6 +5,7 @@ import forge.game.card.Card
 import forge.game.player.Player
 import leyline.bridge.CompanionAction
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.interaction.TargetGroupShapes
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
@@ -289,6 +290,12 @@ object SnapshotCapture {
                     isSpell = entry.isSpell,
                     isActivatedAbility = entry.spellAbility.isActivatedAbility,
                     targets = targets,
+                    targetGroups =
+                        TargetGroupShapes.groups(
+                            entry.spellAbility,
+                            seatOf = { bridge.seatOf(it)?.value },
+                            identityOf = { bridge.resolveAbilityIdentity(sourceCard, it) },
+                        ),
                     forgeAbilityId = entry.spellAbility?.id ?: 0,
                     runtimeTriggerId = runtimeTriggerId,
                     effectSourceForgeCardId = sourceCard.effectSource?.let { ForgeCardId(it.id) },

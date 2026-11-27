@@ -23,8 +23,11 @@ class ProjectionCardReferences internal constructor(
         abilityGrpId: Int,
     ): Boolean = cards.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.BACKUP) == abilityGrpId
 
-    fun targetSpecAbilityGrpId(cardName: String): Int {
-        val cardGrpId = cards.findGrpIdByName(cardName) ?: return 0
+    fun targetSpecAbilityGrpId(cardName: String): Int = targetSpecAbilityGrpId(cards.findGrpIdByName(cardName) ?: 0)
+
+    /** Spell-effect ability of a card, used for a TargetSpec whose targeting ability is unresolved. */
+    fun targetSpecAbilityGrpId(cardGrpId: Int): Int {
+        if (cardGrpId == 0) return 0
         val card = cards.findByGrpId(cardGrpId) ?: return cardGrpId
         return card.abilityIds
             .firstOrNull { (abilityGrpId, _) -> cards.findAbilityInfo(abilityGrpId)?.category == SPELL_EFFECT_CATEGORY }
