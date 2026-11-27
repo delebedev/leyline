@@ -75,7 +75,7 @@ Kotest FunSpec (JUnit Platform). Engine test guidance lives in
 
 - **Architecture:** `docs/architecture.md`, `docs/forge-api-concepts.md`, `engine/AGENTS.md` (engine adapter internals).
 - **Local setup notes:** `docs/local-client-setup.md`
-- **Code review:** every review, `/code-review` and the `claude-review` label included, takes its criteria from `REVIEW.md`: what blocks a merge and what not to report.
+- **Code review:** before reviewing any change, `/code-review` and the `claude-review` label included, read `REVIEW.md`. It defines what blocks a merge, what not to report, and how to check the PR description's claims.
 - **Agent rules:** Read matching subtree `AGENTS.md` files. Before Forge-facing engine work, read `docs/forge-api-concepts.md` and the nearest bridge guidance. For build/bootstrap work, inspect the owning `justfile` recipe and `gradle/scripts/` helper before changing behavior.
 
 ## Documentation
