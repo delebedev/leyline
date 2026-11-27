@@ -4,9 +4,12 @@ import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.allGameObjects
 import leyline.testkit.battlefield
 import leyline.tooling.headless.HeadlessResponseMode
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class FabricateLifecycleTest :
     SessionTest({
@@ -36,12 +39,19 @@ class FabricateLifecycleTest :
                     passUntil(maxPasses = 8) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
                     val source = human.battlefield.card(card)
                     val prompt = messagesSince(before).single { it.hasOptionalActionMessage() }
+                    val sourceObject =
+                        messagesSince(before).allGameObjects().last {
+                            it.instanceId == prompt.optionalActionMessage.sourceId
+                        }
                     assertSoftly {
-                        prompt.optionalActionMessage.sourceId shouldBe human.battlefield.iid(card)
+                        // protocol: OptionalActionMessage.ability-source, OptionalActionMessage.source-card
+                        sourceObject.type shouldBe GameObjectType.Ability
+                        sourceObject.zoneId shouldBe ZoneIds.STACK
+                        sourceObject.parentId shouldBe human.battlefield.iid(card)
                         prompt.prompt.parametersList
                             .single { it.parameterName == "CardId" }
                             .numberValue shouldBe
-                            prompt.optionalActionMessage.sourceId
+                            human.battlefield.iid(card)
                         source.getCounters(CounterEnumType.P1P1) shouldBe 0
                         human.getCardsIn(ZoneType.Battlefield).count { it.isToken } shouldBe 0
                     }

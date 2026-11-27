@@ -311,11 +311,9 @@ Offspring.paid-option
 Offspring.token-in-resolution
 Offspring.trigger-ability
 OpeningHand.no-resolution-complete
-OptionalActionMessage.ability-source
 OptionalActionMessage.card-parameters
 OptionalActionMessage.no-cancel
 OptionalActionMessage.resp-binary
-OptionalActionMessage.source-card
 OrderReq.resp-permutation
 Overload.accepted
 Overload.no-targets

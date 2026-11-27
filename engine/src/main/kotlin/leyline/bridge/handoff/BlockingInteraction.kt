@@ -11,6 +11,11 @@ sealed interface BlockingInteraction {
         val validationMessage: String? = null,
     ) : BlockingInteraction
 
+    /**
+     * @property sourceAbilityForgeId Forge SpellAbility id of the resolving stack ability that
+     *   owns the optional effect. When set, the request names that ability and the prompt's
+     *   first card parameter names [sourceId].
+     */
     data class Optional(
         val sourceId: ForgeCardId?,
         val forceSnapshotBeforePrompt: Boolean,
@@ -19,6 +24,7 @@ sealed interface BlockingInteraction {
         val freeCast: FreeCast? = null,
         val etbPayLifeReplacement: Boolean = false,
         val paymentCost: String? = null,
+        val sourceAbilityForgeId: Int? = null,
     ) : BlockingInteraction
 
     data class FreeCast(

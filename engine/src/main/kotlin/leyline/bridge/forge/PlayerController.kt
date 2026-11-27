@@ -714,6 +714,7 @@ class PlayerController(
                 forceSnapshotBeforePrompt = true,
                 defaultOnTimeout = false,
                 logContext = "confirmPayment:source-counter",
+                sourceAbilityForgeId = currentStackAbilityId(sa),
             )
         }
 
