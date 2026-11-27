@@ -19,7 +19,8 @@ import forge.game.zone.ZoneType
  * colour, and the same source may count toward several colours. Sources are
  * floating mana that may pay this ability, mana abilities on the battlefield
  * and in hand (including paid filters and sacrifice outlets), Convoke creatures
- * and Improvise artifacts. The
+ * and Improvise artifacts. A card's tap abilities count once, as its best one, and
+ * a paid ability counts only when other sources can pay its activation. The
  * total requirement is compared with the net mana those sources add. An announced
  * X is counted before cost reductions, as in payment; an unannounced X counts as
  * zero. Phyrexian mana counts as payable when the player can pay 2 life.
@@ -68,12 +69,14 @@ internal object ManaAffordabilityBound {
         player: Player,
     ): List<Source> =
         buildList {
+            var floating = 0
             for (mana in player.manaPool) {
+                floating++
                 if (mana.meetsManaRestrictions(sa)) add(Source(mana.color.toInt().takeIf { it != 0 } ?: ManaAtom.COLORLESS, 1))
             }
-            for (card in player.getCardsIn(ZoneType.Battlefield) + player.getCardsIn(ZoneType.Hand)) {
-                addAll(manaAbilitySources(card, sa, player))
-            }
+            val options =
+                (player.getCardsIn(ZoneType.Battlefield) + player.getCardsIn(ZoneType.Hand)).flatMap { manaAbilityOptions(it, sa, player) }
+            addAll(usableUnits(options, floating))
             val host = sa.hostCard
             val untapped = player.getCardsIn(ZoneType.Battlefield).filter { !it.isTapped }
             if (host?.hasKeyword(Keyword.CONVOKE) == true) {
@@ -84,16 +87,57 @@ internal object ManaAffordabilityBound {
             }
         }
 
-    private fun manaAbilitySources(
+    /**
+     * One way to use a mana ability. [unit] groups abilities that exclude each other:
+     * every tap ability of a card shares the card's single untap, while other abilities
+     * stand alone. [source] is what it adds toward this payment; [gross] is all the mana
+     * it adds, which may pay another ability's activation even when restricted here.
+     */
+    private data class Option(
+        val unit: Any,
+        val source: Source,
+        val gross: Int,
+        val activationMana: Int,
+    )
+
+    /**
+     * A paid ability, such as a filter, counts only when mana from other units, floating
+     * mana included, can cover its activation; the check repeats so filters may feed each
+     * other. Each unit then contributes its best usable option once.
+     */
+    private fun usableUnits(
+        options: List<Option>,
+        floating: Int,
+    ): List<Source> {
+        val byUnit = options.groupBy { it.unit }
+        val usable = options.filter { it.activationMana == 0 }.toMutableSet()
+
+        fun gross(unit: Any): Int = byUnit.getValue(unit).filter { it in usable }.maxOfOrNull { it.gross } ?: 0
+        do {
+            val added =
+                options.filter { option ->
+                    option !in usable &&
+                        floating + byUnit.keys.filter { it != option.unit }.sumOf(::gross) >= option.activationMana
+                }
+            usable += added
+        } while (added.isNotEmpty())
+        return byUnit.values.mapNotNull { unitOptions ->
+            // Mana this payment cannot spend adds no colour, though it may pay an activation.
+            val live = unitOptions.filter { it in usable && it.source.colored > 0 }.map { it.source }
+            if (live.isEmpty()) return@mapNotNull null
+            Source(live.fold(0) { acc, source -> acc or source.types }, live.maxOf { it.colored }, live.maxOf { it.net })
+        }
+    }
+
+    private fun manaAbilityOptions(
         card: Card,
         paying: SpellAbility,
         player: Player,
-    ): List<Source> =
+    ): List<Option> =
         getPlayableManaAbilities(card, player).mapNotNull { ability ->
             val mana = ability.manaPart ?: return@mapNotNull null
             val cost = ability.payCosts
             if (card.isTapped && cost?.hasTapCost() == true) return@mapNotNull null
-            if (!mana.meetsManaRestrictions(paying)) return@mapNotNull null
             val produced = if (mana.isComboMana) mana.getComboColors(ability) else mana.origProduced
             val types =
                 if (ability.api == ApiType.ManaReflected || mana.isAnyMana || "Chosen" in produced) {
@@ -106,7 +150,21 @@ internal object ManaAffordabilityBound {
                     AbilityUtils.calculateAmount(card, ability.getParamOrDefault("Amount", "1"), ability)
             val activationMana = cost?.totalMana?.cmc ?: 0
             val count = activations(card, ability, player)
-            Source(types, colored = perActivation.coerceAtLeast(1) * count, net = (perActivation - activationMana).coerceAtLeast(0) * count)
+            val gross = perActivation.coerceAtLeast(1) * count
+            val source =
+                if (mana.meetsManaRestrictions(paying)) {
+                    Source(types, colored = gross, net = (perActivation - activationMana).coerceAtLeast(0) * count)
+                } else {
+                    Source(0, colored = 0, net = 0)
+                }
+            // A card untaps once, so its tap abilities exclude each other.
+            val unit: Any = if (cost?.hasTapCost() == true) card else ability
+            Option(
+                unit = unit,
+                source = source,
+                gross = gross,
+                activationMana = activationMana,
+            )
         }
 
     /** Untapped repeatable sacrifice outlets may activate once per permanent they can sacrifice. */

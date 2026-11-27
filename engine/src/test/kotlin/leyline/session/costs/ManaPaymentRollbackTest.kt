@@ -25,11 +25,11 @@ class ManaPaymentRollbackTest :
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Orzhov Signet")
             TestCardRegistry.ensureCardRegistered("Fetid Heath")
-            TestCardRegistry.ensureCardRegistered("Nomad Outpost")
-            TestCardRegistry.ensureCardRegistered("Zurgo Helmsmasher")
+            TestCardRegistry.ensureCardRegistered("Savage Lands")
+            TestCardRegistry.ensureCardRegistered("Ghor-Clan Rampager")
         }
 
-        // Zurgo costs {2}{R}{W}{B}; these sources make at most four mana, but the offer stays open.
+        // Ghor-Clan Rampager costs {2}{R}{G}; Savage Lands is the only red or green source, but the offer stays open.
         val puzzle =
             """
             ActivePlayer=Human
@@ -37,8 +37,8 @@ class ManaPaymentRollbackTest :
             HumanLife=20
             AILife=20
 
-            humanhand=Zurgo Helmsmasher
-            humanbattlefield=Orzhov Signet;Wastes;Fetid Heath;Nomad Outpost
+            humanhand=Ghor-Clan Rampager
+            humanbattlefield=Orzhov Signet;Wastes;Fetid Heath;Savage Lands
             humanlibrary=Plains;Plains;Plains
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
@@ -48,10 +48,10 @@ class ManaPaymentRollbackTest :
             check(activateMana("Wastes"))
             check(activateMana("Orzhov Signet"))
 
-            check(castSpellByName("Zurgo Helmsmasher"))
+            check(castSpellByName("Ghor-Clan Rampager"))
 
             assertSoftly {
-                human.hand.card("Zurgo Helmsmasher")
+                human.hand.card("Ghor-Clan Rampager")
                 game().stack.isEmpty shouldBe true
                 human.manaPool.map { it.sourceCard.name } shouldBe listOf("Orzhov Signet", "Orzhov Signet")
                 allMessages.latestHumanManaPool().map { it.srcInstanceId to it.color } shouldContainExactlyInAnyOrder
@@ -61,10 +61,10 @@ class ManaPaymentRollbackTest :
         }
 
         session("a failed cast untaps the Signet and the land that paid for it", puzzle = puzzle, fullControl = true) {
-            check(castSpellByName("Zurgo Helmsmasher"))
+            check(castSpellByName("Ghor-Clan Rampager"))
 
             assertSoftly {
-                human.hand.card("Zurgo Helmsmasher")
+                human.hand.card("Ghor-Clan Rampager")
                 game().stack.isEmpty shouldBe true
                 human.manaPool.totalMana() shouldBe 0
                 tappedNames().shouldBeEmpty()
