@@ -58,7 +58,6 @@ internal object StackAbilityGrpIdResolver {
             ?: resolveChapterGrpId(entry, sourceCardGrpId, bridge).via(AbilityIdentitySource.SagaChapter)
             ?: resolveParadigmDelayedGrpId(entry, sourceCard).via(AbilityIdentitySource.ParadigmDelayed)
             ?: pendingIdentityGrpId(entry, bridge).via(AbilityIdentitySource.StackRecorded)
-            ?: resolveStructuredIdentityGrpId(entry, sourceCard, bridge).via(AbilityIdentitySource.AbilityIdentity)
             ?: decayedTriggerGrpId(entry, sourceCard, sourceCardGrpId, bridge).via(AbilityIdentitySource.KeywordRow)
             ?: cascadeOrTrainingGrpId(entry, sourceCard).via(AbilityIdentitySource.KeywordRow)
             ?: resolveDiscoverGrpId(entry, sourceCardGrpId, bridge).via(AbilityIdentitySource.DiscoverTrigger)
@@ -78,15 +77,6 @@ internal object StackAbilityGrpIdResolver {
         entry: SpellAbilityStackInstance,
         sourceCard: Card,
     ): Int? = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER.takeIf { entry.isTrigger && isParadigmDelayedTrigger(entry, sourceCard) }
-
-    private fun resolveStructuredIdentityGrpId(
-        entry: SpellAbilityStackInstance,
-        sourceCard: Card,
-        bridge: GameBridge,
-    ): Int? {
-        val ability = entry.spellAbility ?: return null
-        return bridge.resolveAbilityIdentity(sourceCard, ability)?.abilityGrpId?.takeIf { it != 0 }
-    }
 
     /** Discover (Forge `DB$ Discover | Num$ N`): per-card ability row. */
     private fun resolveDiscoverGrpId(

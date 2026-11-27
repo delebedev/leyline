@@ -37,6 +37,7 @@ class AbilityIdentities(
     private val selectedAdditionalCostGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val selectedAdditionalCosts = ConcurrentHashMap<ForgeCardId, SelectedAdditionalCost>()
     private val stackIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
+
     /** Chosen mode row keyed by the Forge id of the modal invocation's root ability. */
     private val selectedModalAbilityGrpIds = ConcurrentHashMap<Int, Int>()
     private val pendingTriggerAbilityGrpIds = ConcurrentHashMap<Int, Int>()
@@ -106,11 +107,6 @@ class AbilityIdentities(
             cardRepository::catalogKeywords,
         )
 
-    private fun rebuildRegistry(
-        card: Card,
-        data: CardData,
-    ): AbilityRegistry = buildRegistry(card, data).also { registries[card.id] = it }
-
     // --- Lookups ---
 
     /** Identity of [ability] on [card]: a spell or activated ability through the registry, or a trigger through the trigger chain. */
@@ -132,8 +128,8 @@ class AbilityIdentities(
     }
 
     /**
-     * Trigger chain: the registry, the rebuilt registry, the card's sole intrinsic trigger, the pending trigger's
-     * cleanup row, the pending trigger's row, then the ability that spawned a delayed trigger.
+     * Trigger chain: the registry, the pending trigger's cleanup row, the pending trigger's row, then the ability
+     * that spawned a delayed trigger.
      */
     private fun lookupTrigger(
         card: Card,
@@ -143,13 +139,6 @@ class AbilityIdentities(
         val data = cardData(card) ?: return AbilityLookup.Missing(AbilityLookupMiss.NoCardData)
         val registry = registryFor(card, data) ?: return AbilityLookup.Missing(AbilityLookupMiss.NoCardData)
         registry.resolve(definition)?.let { return AbilityLookup.Resolved(it, AbilityIdentitySource.Registry) }
-        val refreshed = rebuildRegistry(card, data)
-        refreshed.resolve(definition)?.let { return AbilityLookup.Resolved(it, AbilityIdentitySource.RebuiltRegistry) }
-        if (trigger.isIntrinsic && trigger.spawningAbility == null) {
-            refreshed.resolveSoleIntrinsicTrigger(definition)?.let {
-                return AbilityLookup.Resolved(it, AbilityIdentitySource.SoleIntrinsicTrigger)
-            }
-        }
         val row =
             pendingTriggerCleanupGrpIds[trigger.id]?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.PendingTriggerCleanup) }
                 ?: pendingTriggerAbilityGrpIds[trigger.id]?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.PendingTrigger) }
@@ -161,13 +150,9 @@ class AbilityIdentities(
     private fun spawningTriggerRow(trigger: Trigger): AbilityLookup.Resolved<Int>? {
         val spawningAbility = trigger.spawningAbility ?: return null
         val sourceCard = spawningAbility.hostCard?.effectSource ?: spawningAbility.hostCard ?: return null
-        lookup(sourceCard, spawningAbility.rootAbility).valueOrNull()?.let {
-            return AbilityLookup.Resolved(it.abilityGrpId, AbilityIdentitySource.SpawningAbility)
+        return lookup(sourceCard, spawningAbility.rootAbility).valueOrNull()?.let {
+            AbilityLookup.Resolved(it.abilityGrpId, AbilityIdentitySource.SpawningAbility)
         }
-        return cardRepository
-            .findGrpIdByName(sourceCard.name)
-            ?.let(::soleTriggeredAbilityGrpId)
-            ?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.SpawningSoleTrigger) }
     }
 
     /** Row of the ability that created [trigger], for delayed triggers. */
@@ -178,15 +163,6 @@ class AbilityIdentities(
                 spawningTriggerRow(trigger) ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow),
             ).valueOrNull()
 
-    private fun soleTriggeredAbilityGrpId(cardGrpId: Int): Int? =
-        cardRepository
-            .findByGrpId(cardGrpId)
-            ?.abilityIds
-            .orEmpty()
-            .mapNotNull { (abilityGrpId, _) ->
-                abilityGrpId.takeIf { cardRepository.findAbilityInfo(it)?.category == AbilityRegistry.TRIGGER_CATEGORY }
-            }.singleOrNull()
-
     /** Identity of a bare definition reference on [card], through its registry and then a rebuilt one. */
     fun lookup(
         card: Card,
@@ -196,8 +172,7 @@ class AbilityIdentities(
             run {
                 val data = cardData(card) ?: return@run AbilityLookup.Missing(AbilityLookupMiss.NoCardData)
                 val registry = registryFor(card, data) ?: return@run AbilityLookup.Missing(AbilityLookupMiss.NoCardData)
-                registry.resolve(definition)?.let { return@run AbilityLookup.Resolved(it, AbilityIdentitySource.Registry) }
-                rebuildRegistry(card, data).resolve(definition)?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.RebuiltRegistry) }
+                registry.resolve(definition)?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.Registry) }
                     ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow)
             }
         return ledger.record(AbilityIdentityLedger.Site.Definition, lookup)

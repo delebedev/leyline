@@ -92,13 +92,6 @@ class AbilityRegistry private constructor(
         return ResolvedAbilityIdentity(definition, abilityGrpId, keywordFamilies[definition])
     }
 
-    /** Resolve a regenerated intrinsic trigger when this card exposes one trigger identity. */
-    internal fun resolveSoleIntrinsicTrigger(definition: AbilityDefinitionRef.Trigger): ResolvedAbilityIdentity? =
-        triggerMap.values
-            .distinct()
-            .singleOrNull()
-            ?.let { ResolvedAbilityIdentity(definition, it) }
-
     /** Resolve an ability added by a continuous `AddAbility` effect. */
     fun grantedAbilityGrpId(ability: SpellAbility): Int? {
         val grantor = ability.grantorStatic ?: return null

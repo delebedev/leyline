@@ -53,9 +53,6 @@ enum class AbilityIdentitySource(
     /** The definition's row in the source card's registry. */
     Registry("registry"),
 
-    /** The definition's row after the registry was rebuilt from the live card. */
-    RebuiltRegistry("rebuilt-registry"),
-
     /** A continuous `AddAbility` grant matched to its granting static's hidden row. */
     ContinuousGrant("continuous-grant"),
 
@@ -64,9 +61,6 @@ enum class AbilityIdentitySource(
 
     /** A keyword granted by a static, matched to the granting card's catalog row. */
     GrantedKeyword("granted-keyword"),
-
-    /** The only intrinsic trigger row on the source, for a regenerated trigger definition. */
-    SoleIntrinsicTrigger("sole-intrinsic-trigger"),
 
     /** The cleanup row recorded for a pending trigger. */
     PendingTriggerCleanup("pending-trigger-cleanup"),
@@ -77,14 +71,8 @@ enum class AbilityIdentitySource(
     /** The row of the ability that created a delayed trigger. */
     SpawningAbility("spawning-ability"),
 
-    /** The only triggered row on the card that created a delayed trigger. */
-    SpawningSoleTrigger("spawning-sole-trigger"),
-
     /** The mode chosen for the ability's invocation. */
     ModalChoice("modal-choice"),
-
-    /** The ability's own identity lookup, counted under its own site as well. */
-    AbilityIdentity("ability-identity"),
 
     /** The identity recorded for a stack entry when it was put on the stack. */
     StackRecorded("stack-recorded"),
