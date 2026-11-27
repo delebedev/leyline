@@ -17,7 +17,6 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedModalChoiceInteraction
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
@@ -126,7 +125,7 @@ class MatchModalChoiceRuntimeTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 (selected.get() === choices[selectedIndex]) shouldBe true
                 accepted.afterEngineResume?.invoke()
-                board.bridge.resolvePendingTriggerAbilityIdentity(1, ForgeCardId(card.id)) { 123 } shouldBe 123
+                board.bridge.resolvePendingTriggerAbilityIdentity(1, sa.rootAbility.id) { 123 } shouldBe 123
             }
         }
 
@@ -197,7 +196,7 @@ class MatchModalChoiceRuntimeTest :
                 result.get().cancelled shouldBe false
                 result.get().optionIndices shouldBe emptyList()
                 coordinator.modalChoices.current().shouldBeNull()
-                board.bridge.resolvePendingTriggerAbilityIdentity(1, ForgeCardId(card.id)) { 123 } shouldBe 123
+                board.bridge.resolvePendingTriggerAbilityIdentity(1, sa.rootAbility.id) { 123 } shouldBe 123
             }
         }
 
@@ -253,7 +252,7 @@ class MatchModalChoiceRuntimeTest :
             }
             assertSoftly {
                 accepted.afterEngineResume.shouldNotBeNull().invoke()
-                board.bridge.resolvePendingTriggerAbilityIdentity(1, ForgeCardId(card.id)) { optionGrpIds[0] } shouldBe optionGrpIds[1]
+                board.bridge.resolvePendingTriggerAbilityIdentity(1, sa.rootAbility.id) { optionGrpIds[0] } shouldBe optionGrpIds[1]
             }
         }
 
@@ -474,7 +473,7 @@ class MatchModalChoiceRuntimeTest :
                     .shouldBeNull()
                 accepted.afterEngineResume.shouldNotBeNull().invoke()
                 coordinator.acceptSettled(leyline.testkit.cancelActionReq(), published.gameStateId) shouldBe false
-                board.bridge.resolvePendingTriggerAbilityIdentity(1, ForgeCardId(card.id)) { 0 } shouldBe 0
+                board.bridge.resolvePendingTriggerAbilityIdentity(1, sa.rootAbility.id) { 0 } shouldBe 0
             }
         }
     })

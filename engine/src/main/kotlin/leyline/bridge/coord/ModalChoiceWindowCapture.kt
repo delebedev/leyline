@@ -79,6 +79,7 @@ internal class ModalChoiceWindowCapture(
                 sourceForgeCardId = sourceForgeCardId,
                 sourceCardGrpId = sourceCardGrpId,
                 sourceForgeAbilityId = sourceAbility.id,
+                rootForgeAbilityId = sourceAbility.rootAbility.id,
                 parentGrpId = modalInfo.parentGrpId,
                 ctoGrpId = if (sourceAbility.isTrigger) modalInfo.parentGrpId else sourceCardGrpId,
                 ctoId = 2,

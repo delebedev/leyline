@@ -314,15 +314,15 @@ class GameBridge(
     internal fun cardGrpId(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
 
     fun recordSelectedModalAbilityGrpId(
-        source: ForgeCardId,
+        rootAbilityId: Int,
         abilityGrpId: Int,
-    ) = abilityIdentities.recordSelectedModalAbilityGrpId(source, abilityGrpId)
+    ) = abilityIdentities.recordSelectedModalAbilityGrpId(rootAbilityId, abilityGrpId)
 
     fun resolvePendingTriggerAbilityIdentity(
         triggerId: Int,
-        source: ForgeCardId,
+        spawningRootAbilityId: Int,
         fallback: () -> Int?,
-    ): Int? = abilityIdentities.resolvePendingTriggerAbilityIdentity(triggerId, source, fallback)
+    ): Int? = abilityIdentities.resolvePendingTriggerAbilityIdentity(triggerId, spawningRootAbilityId, fallback)
 
     fun retainPendingTriggerAbilityIdentities(triggerIds: Set<Int>) = abilityIdentities.retainPendingTriggerAbilityIdentities(triggerIds)
 

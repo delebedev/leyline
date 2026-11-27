@@ -31,7 +31,7 @@ internal object PendingTriggerCapture {
         val sourceForgeCardId = ForgeCardId(sourceCard.id)
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         val sourceAbilityGrpId =
-            bridge.resolvePendingTriggerAbilityIdentity(trigger.id, sourceForgeCardId) {
+            bridge.resolvePendingTriggerAbilityIdentity(trigger.id, spawningAbility.rootAbility.id) {
                 bridge.resolveSpawningTriggerAbilityGrpId(trigger)
             } ?: return null
         val policy =

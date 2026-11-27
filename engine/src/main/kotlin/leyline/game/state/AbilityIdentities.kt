@@ -37,7 +37,8 @@ class AbilityIdentities(
     private val selectedAdditionalCostGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val selectedAdditionalCosts = ConcurrentHashMap<ForgeCardId, SelectedAdditionalCost>()
     private val stackIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
-    private val selectedModalAbilityGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
+    /** Chosen mode row keyed by the Forge id of the modal invocation's root ability. */
+    private val selectedModalAbilityGrpIds = ConcurrentHashMap<Int, Int>()
     private val pendingTriggerAbilityGrpIds = ConcurrentHashMap<Int, Int>()
     private val pendingTriggerCleanupGrpIds = ConcurrentHashMap<Int, Int>()
 
@@ -202,13 +203,13 @@ class AbilityIdentities(
         return ledger.record(AbilityIdentityLedger.Site.Definition, lookup)
     }
 
-    /** Identity a prompt shows for [ability]: the modal choice recorded for [card], or the ability's own identity. */
+    /** Identity a prompt shows for [ability]: the mode chosen for its invocation, or the ability's own identity. */
     fun lookupPrompt(
         card: Card,
         ability: SpellAbility,
     ): AbilityLookup<ResolvedAbilityIdentity> {
         val own = lookup(card, ability)
-        val modalGrpId = selectedModalAbilityGrpIds[ForgeCardId(card.id)] ?: return ledger.record(AbilityIdentityLedger.Site.Prompt, own)
+        val modalGrpId = selectedModalAbilityGrpIds[ability.rootAbility.id] ?: return ledger.record(AbilityIdentityLedger.Site.Prompt, own)
         val definition =
             ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
                 ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
@@ -270,20 +271,25 @@ class AbilityIdentities(
 
     // --- Pending triggers ---
 
+    /** Record the mode row chosen for the modal invocation whose root ability has Forge id [rootAbilityId]. */
     fun recordSelectedModalAbilityGrpId(
-        source: ForgeCardId,
+        rootAbilityId: Int,
         abilityGrpId: Int,
     ) {
-        selectedModalAbilityGrpIds[source] = abilityGrpId
+        selectedModalAbilityGrpIds[rootAbilityId] = abilityGrpId
     }
 
+    /**
+     * Row for a pending trigger: the one already bound to [triggerId], else the mode chosen for the spawning
+     * invocation [spawningRootAbilityId], else [fallback]. The chosen mode binds to the first trigger that asks.
+     */
     fun resolvePendingTriggerAbilityIdentity(
         triggerId: Int,
-        source: ForgeCardId,
+        spawningRootAbilityId: Int,
         fallback: () -> Int?,
     ): Int? =
         pendingTriggerAbilityGrpIds[triggerId]
-            ?: (selectedModalAbilityGrpIds.remove(source) ?: fallback())?.also { resolved ->
+            ?: (selectedModalAbilityGrpIds.remove(spawningRootAbilityId) ?: fallback())?.also { resolved ->
                 pendingTriggerAbilityGrpIds[triggerId] = resolved
             }
 

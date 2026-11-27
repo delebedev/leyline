@@ -79,12 +79,12 @@ class AbilityIdentitiesTest :
             }
         }
 
-        test("a prompt answers with the modal choice recorded for its source") {
+        test("a prompt answers with the mode chosen for its own invocation only") {
             val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val ninja = TestCardInjector.inject(bridge, 1, "Ninja of the Deep Hours", ZoneType.Hand).card
             val activated = ninja.spellAbilities.single { it.isActivatedAbility && !it.isManaAbility() }
             val identities = bridge.abilityIdentities
-            identities.recordSelectedModalAbilityGrpId(leyline.bridge.types.ForgeCardId(ninja.id), MODAL_ROW)
+            identities.recordSelectedModalAbilityGrpId(activated.id, MODAL_ROW)
 
             val lookup = identities.lookupPrompt(ninja, activated)
 
@@ -92,6 +92,7 @@ class AbilityIdentitiesTest :
                 (lookup as AbilityLookup.Resolved).via shouldBe AbilityIdentitySource.ModalChoice
                 lookup.value.abilityGrpId shouldBe MODAL_ROW
                 identities.ledger.resolvedBySource()["prompt/modal-choice"] shouldBe 1
+                identities.lookupPrompt(ninja, ninja.firstSpellAbility).valueOrNull()?.abilityGrpId shouldNotBe MODAL_ROW
             }
         }
     }) {
