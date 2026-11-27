@@ -181,3 +181,14 @@ val simclient =
         outputs.upToDateWhen { false }
         outputs.cacheIf { false }
     }
+
+tasks.register<JavaExec>("offerDiffPool") {
+    group = "simclient"
+    description = "Compare offered plays with Forge's ability enumeration over a list of cards"
+    dependsOn(tasks.named("harnessClasses"))
+    classpath = sourceSets["harness"].runtimeClasspath
+    mainClass.set("leyline.tooling.offerdiff.CardPoolOfferDiffToolKt")
+    workingDir = rootProject.projectDir
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}

@@ -287,6 +287,18 @@ simclient *args="--ingest-scry":
     if [ -d "$src" ]; then trash "$src"; fi
     ./gradlew :engine:simclient --args="{{args}}"
 
+# Compare offered plays with Forge's ability enumeration, one state per card
+# and zone. Prefer --cards-file for names with spaces or commas.
+#
+# Examples:
+#   just offer-diff-pool --cards-file cards.txt
+#   just offer-diff-pool --cards-file cards.txt --zones hand,graveyard --card-catalog forge
+#
+# Output: engine/build/offer-diff-pool/results.jsonl + summary.json.
+[group('simclient')]
+offer-diff-pool *args:
+    ./gradlew :engine:offerDiffPool --args="{{args}}"
+
 # --- Serve ---
 
 # default dev mode: local FD + local MD. Ports and paths come from leyline.toml

@@ -234,6 +234,12 @@ Start with these fields in `*.stats.json`:
 
 Use logs only after stats tell you what to search for.
 
+To check one card list against Forge's enumeration without playing games,
+`just offer-diff-pool --cards-file <file>` builds one state per card and zone
+with mana of every colour, compares its single priority window, and writes a
+verdict per card and zone plus coverage: the cards for which Forge listed a
+play beyond the ordinary hand cast.
+
 Optional-cost coverage: set `SIMCLIENT_ACCEPT_OPTIONAL_COSTS=true` when a deck
 or puzzle needs greedy policy to accept optional costs instead of declining
 them.
