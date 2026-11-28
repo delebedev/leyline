@@ -159,7 +159,12 @@ class AbilityIdentities(
     }
 
     /** Row of the ability that created [trigger], for delayed triggers. */
-    fun spawningTriggerAbilityGrpId(trigger: Trigger): Int? = spawningTriggerRow(trigger)?.value
+    fun spawningTriggerAbilityGrpId(trigger: Trigger): Int? =
+        ledger
+            .record(
+                AbilityIdentityLedger.Site.SpawningTrigger,
+                spawningTriggerRow(trigger) ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow),
+            ).valueOrNull()
 
     private fun soleTriggeredAbilityGrpId(cardGrpId: Int): Int? =
         cardRepository
@@ -200,12 +205,14 @@ class AbilityIdentities(
         return ledger.record(AbilityIdentityLedger.Site.Prompt, AbilityLookup.Resolved(identity, AbilityIdentitySource.ModalChoice))
     }
 
-    /** The granting card's row for a keyword a static granted to [ability]'s host. */
-    fun grantedKeywordAbilityGrpId(ability: SpellAbility): Int? =
+    /** The granting card's row for a keyword a static granted to [ability]'s host, counted at [site]. */
+    fun grantedKeywordAbilityGrpId(
+        ability: SpellAbility,
+        site: AbilityIdentityLedger.Site = AbilityIdentityLedger.Site.GrantedKeyword,
+    ): Int? =
         cardRepository
-            .lookupGrantedKeywordAbility(
-                ability,
-            )?.let { ledger.record(AbilityIdentityLedger.Site.GrantedKeyword, it) }
+            .lookupGrantedKeywordAbility(ability)
+            ?.let { ledger.record(site, it) }
             ?.valueOrNull()
 
     // --- Stack identities ---

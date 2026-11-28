@@ -28,10 +28,10 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.SelectedAdditionalCost
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.GrantedAlternativeCosts
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
+import leyline.game.state.AbilityIdentityLedger
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
@@ -312,7 +312,7 @@ class GameEventCollector(
             } else if (grpId != 0 && eventSa?.isOptionalCostPaid(OptionalCost.AltCost) == true) {
                 bridge.cardRepository.findGenericAlternativeCostAbilityGrpId(grpId) ?: 0
             } else if (grpId != 0 && keywordId != null) {
-                eventSa?.let { bridge.cardRepository.grantedKeywordAbilityGrpId(it) }
+                eventSa?.let { bridge.abilityIdentities.grantedKeywordAbilityGrpId(it, AbilityIdentityLedger.Site.Event) }
                     ?: bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
             } else {
                 eventSa
@@ -571,13 +571,13 @@ class GameEventCollector(
         when {
             isParadigmDelayedTrigger(sa, card) -> KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
             sa.api == ApiType.Sacrifice && sa.trigger?.getParam("ValidCard") == "Card.Self+evoked" ->
-                bridge.cardRepository.grantedKeywordAbilityGrpId(sa) ?: bridge.cardRepository
+                bridge.abilityIdentities.grantedKeywordAbilityGrpId(sa, AbilityIdentityLedger.Site.Event) ?: bridge.cardRepository
                     .findGrpIdByName(card.name)
                     ?.let { bridge.cardRepository.findKeywordAbilityGrpId(it, KeywordAbilityIds.EVOKE) }
             sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION
             (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter ->
                 KeywordAbilityIds.TRAINING
-            else -> bridge.cardRepository.grantedKeywordAbilityGrpId(sa)
+            else -> bridge.abilityIdentities.grantedKeywordAbilityGrpId(sa, AbilityIdentityLedger.Site.Event)
         }
 
     private fun isParadigmCopyCast(sa: SpellAbility?): Boolean {

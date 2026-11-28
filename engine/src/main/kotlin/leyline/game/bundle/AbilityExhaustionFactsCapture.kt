@@ -5,9 +5,13 @@ import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import forge.game.staticability.StaticAbilityAdditionalActivations
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.types.AbilityIdentitySource
+import leyline.bridge.types.AbilityLookup
+import leyline.bridge.types.AbilityLookupMiss
 import leyline.game.data.CardData
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
+import leyline.game.state.AbilityIdentityLedger
 import leyline.game.state.GameBridge
 
 /** Live shell adapter for final ability-exhaustion display rows at one frame cut. */
@@ -24,7 +28,13 @@ object AbilityExhaustionFactsCapture {
             if (exhausted.isEmpty()) continue
             val registry = bridge.abilityRegistryFor(card, bound.data) ?: continue
             for (ability in exhausted) {
-                val abilityGrpId = registry.forSpellAbility(ability.definitionId)?.takeIf { it != 0 } ?: continue
+                val row = registry.forSpellAbility(ability.definitionId)?.takeIf { it != 0 }
+                bridge.abilityIdentities.ledger.record(
+                    AbilityIdentityLedger.Site.Exhaustion,
+                    row?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.Registry) }
+                        ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow),
+                )
+                val abilityGrpId = row ?: continue
                 rows +=
                     AbilityExhaustionFacts.Row(
                         sourceForgeCardId = bound.forgeCardId,

@@ -1,10 +1,13 @@
 package leyline.game.state
 
+import forge.game.ability.AbilityUtils
+import forge.game.ability.ApiType
 import forge.game.keyword.Keyword
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.AbilityIdentitySource
 import leyline.bridge.types.AbilityLookup
@@ -36,6 +39,29 @@ class AbilityIdentitiesTest :
                 (definitionLookup as AbilityLookup.Resolved).via shouldBe AbilityIdentitySource.Registry
                 identities.ledger.resolvedBySource() shouldContainKey "spell-ability/registry"
                 identities.ledger.resolvedBySource() shouldContainKey "definition/registry"
+            }
+        }
+
+        test("a delayed trigger's row from its spawning ability is counted at its own site") {
+            val (bridge, game, _) =
+                startWithBoard { _, human, _ ->
+                    val source = addCard("Ba Sing Se", human, ZoneType.Battlefield)
+                    val forest = addCard("Forest", human, ZoneType.Battlefield)
+                    val earthbend = source.spellAbilities.single { it.api == ApiType.Earthbend }
+                    earthbend.activatingPlayer = human
+                    earthbend.targets.add(forest)
+                    AbilityUtils.resolve(earthbend)
+                }
+            val trigger = game.triggerHandler.delayedTriggersSnapshot.first { it.spawningAbility?.api == ApiType.Earthbend }
+            val identities = bridge.abilityIdentities
+            fun counted() = identities.ledger.resolvedBySource()["spawning-trigger/spawning-ability"] ?: 0
+            val before = counted()
+
+            val row = identities.spawningTriggerAbilityGrpId(trigger)
+
+            assertSoftly {
+                row shouldNotBe null
+                counted() - before shouldBe 1
             }
         }
 

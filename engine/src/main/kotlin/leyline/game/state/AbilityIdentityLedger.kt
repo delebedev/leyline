@@ -39,6 +39,21 @@ class AbilityIdentityLedger {
 
         /** An activated offer's row and occurrence. */
         Activated("activated"),
+
+        /** A granted keyword's row read while translating a Forge game event. */
+        Event("event"),
+
+        /** The alternative cost row the copilot expects for a cast it is about to choose. */
+        CopilotCast("copilot-cast"),
+
+        /** A replacement option's keyword row and occurrence. */
+        Replacement("replacement"),
+
+        /** An exhausted ability's row. */
+        Exhaustion("exhaustion"),
+
+        /** The row a delayed trigger takes from the ability that created it. */
+        SpawningTrigger("spawning-trigger"),
     }
 
     private val resolved = ConcurrentHashMap<String, AtomicInteger>()
