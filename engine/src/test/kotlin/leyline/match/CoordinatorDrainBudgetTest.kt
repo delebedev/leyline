@@ -27,7 +27,10 @@ class CoordinatorDrainBudgetTest :
             val board = startWithBoard { _, _, _ -> }
             val bridge = board.bridge
             bridge.cutCoordinator.registerViewer(SeatId(1))
-            bridge.priorityWaitMs = 50
+            // Each stop advances the fake clock 30 s. Below the stop limit only the 1000 s ceiling
+            // applies, so every real wait is priorityWaitMs; the fifth stop is past the 50 s total.
+            bridge.priorityWaitMs = 30_000
+            val clock = AtomicLong()
             val engineFailure = AtomicReference<Throwable>()
             val receiverFailure = AtomicReference<Throwable>()
             val engineDone = CountDownLatch(1)
@@ -36,24 +39,38 @@ class CoordinatorDrainBudgetTest :
             val engine =
                 Thread {
                     runCatching {
-                        while (true) bridge.actionBridge(SeatId(1)).awaitAction(syncState())
+                        while (true) {
+                            bridge.actionBridge(SeatId(1)).awaitAction(syncState())
+                            clock.addAndGet(TimeUnit.SECONDS.toNanos(30))
+                        }
                     }.onFailure(engineFailure::set)
                     engineDone.countDown()
                 }.also { it.start() }
             bridge.awaitPriorityWithTimeout(1_000) shouldBe true
             val receiver =
                 Thread {
-                    runCatching { drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 50, drainStopLimit = 5) }
-                        .onFailure(receiverFailure::set)
+                    runCatching {
+                        drainCoordinatorBarrier(
+                            sink,
+                            bridge,
+                            SeatId(1),
+                            drainTimeoutMs = 50_000,
+                            drainStopLimit = 5,
+                            drainCeilingMs = 1_000_000,
+                            nowNanos = clock::get,
+                        )
+                    }.onFailure(receiverFailure::set)
                     receiverDone.countDown()
                 }.also { it.start() }
             try {
                 assertSoftly {
-                    receiverDone.await(500, TimeUnit.MILLISECONDS) shouldBe true
-                    engineDone.await(500, TimeUnit.MILLISECONDS) shouldBe true
+                    receiverDone.await(60, TimeUnit.SECONDS) shouldBe true
+                    engineDone.await(60, TimeUnit.SECONDS) shouldBe true
                     (receiverFailure.get() is PlaybackTerminalFailure) shouldBe true
                     engineFailure.get() shouldBe receiverFailure.get()
                     bridge.cutCoordinator.failure() shouldBe receiverFailure.get()
+                    receiverFailure.get()?.cause?.message shouldBe
+                        "Synchronization drain exceeded its 50000 ms limit after 5 synchronization stops"
                     sink.gameStateIds.size shouldBeGreaterThanOrEqual 5
                     sink.gameStateIds.distinct().size shouldBe sink.gameStateIds.size
                 }
