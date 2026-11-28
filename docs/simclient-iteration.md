@@ -240,7 +240,9 @@ it can occupy, with mana of every colour. Only a card that can be a commander
 starts in the command zone. Each state compares its single priority window and
 writes a verdict per card and zone plus coverage: the cards for which Forge
 listed a play beyond the ordinary hand cast. A state that publishes other than
-one window, or whose card never reaches its zone, is an error.
+one window, or whose card Forge does not know, is an error. A known card that
+state-based actions remove, such as an Aura with nothing to enchant, is
+`NotPlaceable`. The run exits non-zero when every state errored.
 
 Optional-cost coverage: set `SIMCLIENT_ACCEPT_OPTIONAL_COSTS=true` when a deck
 or puzzle needs greedy policy to accept optional costs instead of declining

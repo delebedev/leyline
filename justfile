@@ -301,9 +301,17 @@ simclient *args="--ingest-scry":
 offer-diff-pool *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Quote each argument so card names with spaces reach the tool intact.
+    # Gradle's --args splitter honours single and double quotes but no escapes, so each argument is wrapped
+    # in whichever quote it does not contain; card names with apostrophes use double quotes.
     quoted=""
-    for arg in "$@"; do quoted+=" \"$arg\""; done
+    for arg in "$@"; do
+        if [[ "$arg" == *\"* ]]; then
+            if [[ "$arg" == *"'"* ]]; then echo "offer-diff-pool: argument has both quote kinds: $arg" >&2; exit 2; fi
+            quoted+=" '$arg'"
+        else
+            quoted+=" \"$arg\""
+        fi
+    done
     ./gradlew :engine:offerDiffPool --args="$quoted"
 
 # --- Serve ---

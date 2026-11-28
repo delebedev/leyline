@@ -38,13 +38,15 @@ class CardPoolOfferDiff(
         val failures: Map<String, Int> = emptyMap(),
         /** Why no window was compared: the card failed to load or the game threw. */
         val error: String? = null,
+        /** Forge knows the card, but state-based actions removed it from the zone before the window. */
+        val notPlaceable: Boolean = false,
     ) {
         val verdict: Verdict get() = Verdict.of(this)
     }
 
     /**
      * One card-and-zone outcome, strongest first. A card's overall verdict is
-     * the strongest over its zones.
+     * the strongest over its zones that ran.
      */
     enum class Verdict {
         Error,
@@ -54,6 +56,9 @@ class CardPoolOfferDiff(
         InactiveAffordability,
         Agrees,
         NoSignal,
+
+        /** The board cannot hold the card in this zone, such as an Aura with nothing to enchant. */
+        NotPlaceable,
         ;
 
         companion object {
@@ -65,6 +70,7 @@ class CardPoolOfferDiff(
                         .toSet()
                 val buckets = result.findings.map { it.key.bucket }.toSet()
                 return when {
+                    result.notPlaceable -> NotPlaceable
                     result.error != null || result.failures.isNotEmpty() -> Error
                     OfferDiffBucket.EnumerationGap in unnamed -> EnumerationGap
                     OfferDiffBucket.ProjectionDrop in unnamed -> ProjectionDrop
@@ -79,7 +85,7 @@ class CardPoolOfferDiff(
         }
     }
 
-    fun run(
+    private fun run(
         card: String,
         zone: ZoneType,
     ): ZoneResult {
@@ -95,10 +101,11 @@ class CardPoolOfferDiff(
         return try {
             harness.connect(puzzleText = puzzle(card, zone, startingCounters(card)))
             val player = checkNotNull(harness.bridge.getPlayer(SeatId(1))) { "no seat-1 player" }
-            // The puzzle loader skips names Forge does not know, and a permanent can still die on the battlefield;
-            // either would otherwise read as no signal. Fixture cards never share the tested card's name.
-            check(player.getZone(zone).cards.any { it.name == card }) {
-                "card not in $zone after setup: unknown to Forge, or it left the zone"
+            if (player.getZone(zone).cards.none { it.name == card }) {
+                // The puzzle loader skips names Forge does not know; a known card that is missing was removed by
+                // state-based actions, such as an Aura with nothing to enchant. Fixture cards never share its name.
+                check(StaticData.instance().commonCards.getCard(card) != null) { "card unknown to Forge" }
+                return ZoneResult(card, zone, emptyList(), emptyList(), notPlaceable = true)
             }
             val extra =
                 NonInteractiveScope
@@ -134,7 +141,9 @@ class CardPoolOfferDiff(
     /**
      * An instant or sorcery is never on the battlefield, and only a card that can
      * be a commander starts in the command zone. An unknown name is kept so it
-     * reports an error.
+     * reports an error. The front face decides, so a modal double-faced card
+     * with an instant or sorcery front never covers its permanent back face on
+     * the battlefield.
      */
     private fun canOccupy(
         card: String,
@@ -188,7 +197,9 @@ class CardPoolOfferDiff(
 
     private fun describe(sa: SpellAbility): String {
         val variant = sa.alternativeCost?.name ?: sa.api?.name ?: OfferDiff.kindOf(sa).name
-        return "${OfferDiff.kindOf(sa).name}:$variant ${sa.payCosts?.toSimpleString().orEmpty()}".trim()
+        val label = "${OfferDiff.kindOf(sa).name}:$variant ${sa.payCosts?.toSimpleString().orEmpty()}".trim()
+        // The description keeps two abilities with the same API and cost apart.
+        return sa.description?.takeIf { it.isNotBlank() }?.let { "$label ($it)" } ?: label
     }
 
     companion object {

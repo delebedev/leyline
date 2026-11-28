@@ -43,7 +43,8 @@ internal object CardPoolOfferDiffTool {
         val summary = summaryJson(cards, results, elapsedMs, options)
         File(options.outDir, "summary.json").writeText(summary)
         printSummary(cards, results, elapsedMs)
-        return 0
+        // A run that compared nothing is broken, not clean.
+        return if (results.isEmpty() || results.all { it.verdict == CardPoolOfferDiff.Verdict.Error }) 1 else 0
     }
 
     private fun usageError(ex: RuntimeException): Int {
