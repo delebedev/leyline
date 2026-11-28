@@ -63,6 +63,7 @@ scenarios:
       - activate: { card: "Svella, Ice Shaper", ability_index: 1 }
       - pass_until: { prompt: SelectNReq, max_passes: 8 }
       - select_card: { side: ours, zone: library, card: Grizzly Bears }
+      - optional_action: { accept: true }
       - resolve_stack: {}
       - expect:
           all:

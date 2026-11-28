@@ -262,7 +262,14 @@ class EffectCardChoiceTest :
                     req.minSel shouldBe 0
                     req.maxSel shouldBe 1
                 }
+                holdNextOptionalAction()
                 respondToSelectN(if (cast) listOf(offered.getValue("Grizzly Bears")) else emptyList())
+                if (cast) {
+                    passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
+                    allMessages.last { it.hasOptionalActionMessage() }.optionalActionMessage.sourceId shouldBe
+                        offered.getValue("Grizzly Bears")
+                    respondToOptionalAction(true)
+                }
                 passUntilResolved()
                 assertSoftly {
                     ("Grizzly Bears" in human.getZone(ZoneType.Battlefield).cards.map { it.name }) shouldBe cast
