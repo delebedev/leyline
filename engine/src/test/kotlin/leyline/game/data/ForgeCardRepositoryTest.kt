@@ -41,6 +41,18 @@ class ForgeCardRepositoryTest :
                 keywordTexts("Darksteel Garrison") shouldBe listOf("Fortify {3}")
                 keywordTexts("Lion Sash") shouldBe listOf("Reconfigure {2}")
                 keywordTexts("Smuggler's Copter") shouldBe listOf("Flying", "Crew 1")
+                keywordTexts("Reaper's Scythe").last() shouldBe "Death Sickle — Equip {2}"
+            }
+        }
+
+        test("declared keywords with host-derived costs or calculated amounts stay symbolic") {
+            fun text(declaration: String) = declaredKeywordText(declaration, requireNotNull(keywordDefinition(declaration)))
+            assertSoftly {
+                text("Blitz:CardManaCost") shouldBe "Blitz"
+                text("Madness:ManaCost") shouldBe "Madness"
+                text("Cycling") shouldBe "Cycling"
+                text("Crew:N") shouldBe "Crew X"
+                text("Soulshift:N") shouldBe "Soulshift X"
             }
         }
 

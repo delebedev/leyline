@@ -3,7 +3,6 @@ package leyline.game.data
 import forge.StaticData
 import forge.card.CardRules
 import forge.card.ICardFace
-import forge.game.keyword.Equip
 import forge.game.keyword.Keyword
 import forge.localinstance.properties.ForgeConstants
 import leyline.bridge.bootstrap.GameBootstrap
@@ -12,6 +11,7 @@ import leyline.bridge.types.manaTokenToPair
 import leyline.game.InMemoryCardRepository
 import leyline.game.codes.SlotKind
 import wotc.mtgo.gre.external.messaging.Messages.CardType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.SuperType
 import java.nio.ByteBuffer
@@ -213,24 +213,15 @@ class ForgeCardRepository private constructor(
             return params["RoomName"]?.let { "$it — $description" } ?: description
         }
 
-        /**
-         * A keyword row's player-facing text is the keyword title Forge renders, such as `Equip {3}` or
-         * `Crew 1`, with Equip's optional recipient label (`Equip Wizard {1}`) placed as Forge's equip
-         * ability describes it. A title that needs a live host card, such as a cost equal to its mana
-         * cost, falls back to the keyword name.
-         */
-        private fun keywordAbilityText(raw: String): String {
-            val instance = Keyword.getInstance(raw)
-            val name = instance.keyword.toString()
-            val title = runCatching { instance.title }.getOrNull() ?: return name
-            if (instance !is Equip) return title
-            val recipient =
-                raw
-                    .split(':')
-                    .getOrNull(3)
-                    ?.trim()
-                    ?.takeUnless { it.isEmpty() || it.startsWith("Flavor ") }
-            return recipient?.let { title.replaceFirst(name, "$name $it") } ?: title
+        private fun rowLocalization(
+            raw: String,
+            params: Map<String, String>,
+            kind: SlotKind,
+            mana: List<Pair<ManaColor, Int>>,
+        ): AbilityLocalization {
+            val definition = if (kind == SlotKind.Keyword) keywordDefinition(raw) else null
+            val text = definition?.let { declaredKeywordText(raw, it) } ?: abilityText(params, raw)
+            return AbilityLocalization(text, mana, definition?.keyword?.toString())
         }
 
         private fun definitionKeywords(face: ICardFace): List<String> =
@@ -572,14 +563,7 @@ class ForgeCardRepository private constructor(
             categories += category
             rows.registerAbilityInfo(id, AbilityInfo(base, mana, category, if (kind == SlotKind.Mana) 1 else 0))
             val parsed = parseParams(raw)
-            val keyword =
-                Keyword
-                    .getInstance(raw)
-                    .keyword
-                    .takeIf { kind == SlotKind.Keyword && it != Keyword.UNDEFINED }
-                    ?.toString()
-            val text = if (keyword != null) keywordAbilityText(raw) else abilityText(parsed, raw)
-            rows.registerAbilityLocalization(id, AbilityLocalization(text, mana, keyword))
+            rows.registerAbilityLocalization(id, rowLocalization(raw, parsed, kind, mana))
             val effect = modalEffect(raw, variables)
             effect["Choices"]
                 ?.split(",")
