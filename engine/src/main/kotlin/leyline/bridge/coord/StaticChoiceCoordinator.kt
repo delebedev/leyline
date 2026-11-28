@@ -366,6 +366,8 @@ class StaticChoiceCoordinator(
         val typeIds = ordered.map { type -> if (isCardType) StaticChoiceIds.cardTypeIdFor(type) else StaticChoiceIds.subtypeIdFor(type) }
         val idByType = ordered.zip(typeIds).toMap()
         val labelled = bridge.choicePresentation == CostChoicePresentation.ForgeText && typeIds.any { it == null }
+        val enumList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes
+        val enumSemantic = if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice
 
         fun request(choices: List<Pair<String, Int>>) =
             PromptRequest(
@@ -375,24 +377,12 @@ class StaticChoiceCoordinator(
                 min = if (isOptional) 0 else 1,
                 max = 1,
                 defaultIndex = 0,
-                route =
-                    PromptRouteResolver.resolve(
-                        when {
-                            labelled -> PromptSemantic.NamedChoice
-                            isCardType -> PromptSemantic.StaticCardTypeChoice
-                            else -> PromptSemantic.StaticSubtypeChoice
-                        },
-                    ),
+                route = PromptRouteResolver.resolve(if (labelled) PromptSemantic.NamedChoice else enumSemantic),
                 sourceEntityId = sourceEntityId(sa),
-                staticList =
-                    when {
-                        labelled -> null
-                        isCardType -> StaticList.CardTypes
-                        else -> StaticList.SubTypes
-                    },
+                staticList = enumList.takeUnless { labelled },
                 staticOptionIds = choices.map { it.second },
                 // A labelled pick with an enum id records the same ChoiceResult as the enum-list form.
-                choiceResultList = (if (isCardType) StaticList.CardTypes else StaticList.SubTypes).takeIf { labelled },
+                choiceResultList = enumList.takeIf { labelled },
                 choiceResultValues = if (labelled) choices.map { idByType[it.first] } else emptyList(),
             )
 
