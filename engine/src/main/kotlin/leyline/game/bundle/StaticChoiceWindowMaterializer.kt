@@ -2,6 +2,7 @@ package leyline.game.bundle
 
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoiceWindowValue
+import leyline.config.CostChoicePresentation
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -22,8 +23,9 @@ internal class StaticChoiceWindowMaterializer {
     fun prepare(
         context: SettledPromptMaterializationContext,
         window: StaticChoiceWindowValue,
+        presentation: CostChoicePresentation,
     ): SettledPromptMaterialization {
-        val request = buildRequest(window, context)
+        val request = buildRequest(window, context, presentation)
         val predecessor = context.sequence.lastGameStateGsId()
         val state =
             context.gameState
@@ -55,12 +57,35 @@ internal class StaticChoiceWindowMaterializer {
         return context.prepared(messages, awaitedRequest = messages.last())
     }
 
+    /**
+     * A type choice with a type that has no enum value is offered by label under
+     * [CostChoicePresentation.ForgeText]. Otherwise the enum list offers only the types
+     * that have one.
+     */
+    private fun offeredByLabel(
+        window: StaticChoiceWindowValue,
+        presentation: CostChoicePresentation,
+    ): Boolean =
+        window.kind == StaticChoiceKind.Named ||
+            (presentation == CostChoicePresentation.ForgeText && window.options.any { it.protocolValue == null })
+
+    /** Options of [window] the request built for [presentation] lets the player choose. */
+    fun shownOptions(
+        window: StaticChoiceWindowValue,
+        presentation: CostChoicePresentation,
+    ): List<Int> =
+        window.options
+            .filter { offeredByLabel(window, presentation) || it.protocolValue != null }
+            .map { it.originalOptionIndex }
+
     private fun buildRequest(
         window: StaticChoiceWindowValue,
         context: SettledPromptMaterializationContext,
+        presentation: CostChoicePresentation,
     ): SelectNReq {
+        val byLabel = offeredByLabel(window, presentation)
         val listType =
-            if (window.staticList == null) {
+            if (window.staticList == null || byLabel) {
                 SelectionListType.Dynamic
             } else if (window.staticList == StaticList.Colors || window.staticList == StaticList.Parities) {
                 SelectionListType.Static
@@ -79,7 +104,7 @@ internal class StaticChoiceWindowMaterializer {
             .setMaxSel(window.max)
             .setPrompt(
                 Prompt.newBuilder().apply {
-                    if (window.kind == StaticChoiceKind.Named) {
+                    if (byLabel) {
                         window.options.forEach { option ->
                             addParameters(
                                 PromptParameter
@@ -94,7 +119,7 @@ internal class StaticChoiceWindowMaterializer {
                 },
             ).apply {
                 window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "StaticChoice source") }
-                window.staticList?.let { staticList = it }
+                window.staticList?.takeUnless { byLabel }?.let { staticList = it }
                 if (window.sourceForgeAbilityId != 0) {
                     sourceId =
                         context.requiredInstanceId(
@@ -104,8 +129,8 @@ internal class StaticChoiceWindowMaterializer {
                 }
                 if (listType == SelectionListType.Dynamic) {
                     idType =
-                        when (window.kind) {
-                            StaticChoiceKind.Named -> IdType.PromptParameterIndex
+                        when (window.kind.takeUnless { byLabel }) {
+                            null, StaticChoiceKind.Named -> IdType.PromptParameterIndex
                             StaticChoiceKind.Dungeon -> IdType.CardGrpId
                             StaticChoiceKind.DungeonRoom,
                             StaticChoiceKind.Color,
@@ -115,7 +140,11 @@ internal class StaticChoiceWindowMaterializer {
                             -> IdType.AbilityGrpId
                         }
                 }
-                if (listType != SelectionListType.Static) addAllIds(window.options.map { it.protocolValue })
+                if (byLabel) {
+                    addAllIds(window.options.map { it.originalOptionIndex + 1 })
+                } else if (listType != SelectionListType.Static) {
+                    addAllIds(window.options.mapNotNull { it.protocolValue })
+                }
             }.build()
     }
 

@@ -1894,6 +1894,10 @@ class BundleBuilder(
         )
     }
 
+    /** Options of [window] its request lets the player choose, under the host's label policy. */
+    internal fun staticChoiceShownOptions(window: leyline.bridge.handoff.StaticChoiceWindowValue): List<Int> =
+        staticChoiceWindows.shownOptions(window, bridge.engineSettings.costChoicePresentation)
+
     /** Prepare, but do not install, one coordinator-owned static enum SelectN window. */
     internal fun prepareStaticChoiceWindow(
         game: Game,
@@ -1927,7 +1931,7 @@ class BundleBuilder(
         return finishSettledPrompt(
             frame,
             counter,
-            { context -> staticChoiceWindows.prepare(context, window) },
+            { context -> staticChoiceWindows.prepare(context, window, bridge.engineSettings.costChoicePresentation) },
             { it.bundle.messages },
             gameState = { gsm ->
                 val playerSnapshot =

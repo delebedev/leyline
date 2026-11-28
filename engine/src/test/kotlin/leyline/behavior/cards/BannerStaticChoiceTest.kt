@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.StaticChoiceIds
+import leyline.config.CostChoicePresentation
 import leyline.game.codes.DetailKeys
 import leyline.testkit.*
 import leyline.testkit.SessionTest
@@ -12,6 +13,7 @@ import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.lastGsmMatching
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
@@ -69,6 +71,56 @@ class BannerStaticChoiceTest :
                 ids shouldContain StaticChoiceIds.subtypeIdFor("Berserker")!!
                 ids shouldContain StaticChoiceIds.subtypeIdFor("Human")!!
                 ids shouldContain StaticChoiceIds.subtypeIdFor("Kithkin")!!
+            }
+        }
+
+        session(
+            "Patchwork Banner offers creature types without an enum value as named labels under Forge-text labels",
+            puzzleFile = "data/puzzles/patchwork-banner-static-choice.pzl",
+            costChoicePresentation = CostChoicePresentation.ForgeText,
+        ) {
+            val req = castSpellUntilSelectNReq("Patchwork Banner")
+            val labels = req.prompt.parametersList.map { it.stringValue }
+            val tribble = labels.indexOf("Tribble") + 1
+
+            assertSoftly {
+                req.listType shouldBe SelectionListType.Dynamic
+                req.idType shouldBe IdType.PromptParameterIndex
+                req.staticList shouldBe StaticList.None_a56d
+                labels shouldContain "Goblin"
+                labels shouldContain "Tribble"
+                req.idsList shouldBe labels.indices.map { it + 1 }
+            }
+            respondToSelectN(listOf(tribble))
+            passUntilResolved()
+            assertSoftly {
+                human.battlefield.card("Patchwork Banner").chosenType shouldBe "Tribble"
+                allMessages.lastGsmMatching { gsm -> gsm.annotationsList.any { AnnotationType.ChoiceResult in it.typeList } } shouldBe null
+            }
+        }
+
+        session(
+            "Patchwork Banner records an enum-valued pick from Forge-text labels as a static subtype choice",
+            puzzleFile = "data/puzzles/patchwork-banner-static-choice.pzl",
+            costChoicePresentation = CostChoicePresentation.ForgeText,
+        ) {
+            val req = castSpellUntilSelectNReq("Patchwork Banner")
+            val goblinId = StaticChoiceIds.subtypeIdFor("Goblin")!!
+            respondToSelectN(listOf(req.prompt.parametersList.indexOfFirst { it.stringValue == "Goblin" } + 1))
+            passUntilResolved()
+
+            val choiceResult =
+                checkNotNull(
+                    allMessages.lastGsmMatching { gsm ->
+                        gsm.annotationsList.any { AnnotationType.ChoiceResult in it.typeList }
+                    },
+                ) { "No ChoiceResult annotation emitted" }
+                    .annotationsList
+                    .annotation(AnnotationType.ChoiceResult)
+            assertSoftly {
+                human.battlefield.card("Patchwork Banner").chosenType shouldBe "Goblin"
+                choiceResult.detailInt(DetailKeys.CHOICE_VALUE) shouldBe goblinId
+                choiceResult.detailInt(DetailKeys.CHOICE_DOMAIN) shouldBe StaticList.SubTypes.number
             }
         }
 

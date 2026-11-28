@@ -266,6 +266,72 @@ class StaticChoiceCoordinatorTest :
             }
         }
 
+        test("on the engine thread a native type choice that shows one enum value answers it without a prompt") {
+            val board = startPuzzleAtMain1(puzzle)
+            val controller = board.human.controller as PlayerController
+            val sa =
+                board.human.battlefield
+                    .card("Island")
+                    .spellAbilities
+                    .first()
+            val bridge = board.bridge.promptBridge(SeatId(1))
+            val before = bridge.history.size
+            val result = AtomicReference<String?>()
+            val failure = AtomicReference<Throwable?>()
+            val worker =
+                Thread {
+                    try {
+                        bridge.setDiagnosticContext(board.game, Thread.currentThread())
+                        result.set(controller.chooseSomeType("Card", sa, listOf("Stickers", "Land"), false))
+                    } catch (error: Throwable) {
+                        failure.set(error)
+                    }
+                }
+            worker.start()
+            worker.join(TimeUnit.SECONDS.toMillis(3))
+            assertSoftly {
+                failure.get() shouldBe null
+                result.get() shouldBe "Land"
+                board.bridge.cutCoordinator.staticChoices
+                    .current() shouldBe null
+                (
+                    bridge.history
+                        .drop(before)
+                        .single()
+                        .route as? ResolvedPromptRoute.AutoResolve
+                )?.rule shouldBe
+                    AutomaticAnswerRule.NoChoiceAmongShownOptions
+            }
+        }
+
+        test("a required type choice that shows no type answers Forge's first type, not the sorted first") {
+            val board = startPuzzleAtMain1(puzzle)
+            val controller = board.human.controller as PlayerController
+            val sa =
+                board.human.battlefield
+                    .card("Island")
+                    .spellAbilities
+                    .first()
+            controller.chooseSomeType("Creature", sa, listOf("Zorblax", "Abcdex"), false) shouldBe "Zorblax"
+        }
+
+        test("a type choice without a published window falls back to the first type with an enum value") {
+            val board = startPuzzleAtMain1(puzzle)
+            val controller = board.human.controller as PlayerController
+            val sa =
+                board.human.battlefield
+                    .card("Island")
+                    .spellAbilities
+                    .first()
+            val bridge = board.bridge.promptBridge(SeatId(1))
+            val before = bridge.history.size
+            controller.chooseSomeType("Card", sa, listOf("Stickers", "Land", "Creature"), false) shouldBe "Land"
+            bridge.history
+                .drop(before)
+                .single()
+                .result shouldBe listOf(1)
+        }
+
         test("a type choice with one shown value or none answers without a prompt under its named rule") {
             val board = startPuzzleAtMain1(puzzle)
             val controller = board.human.controller as PlayerController

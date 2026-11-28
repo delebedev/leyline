@@ -5,7 +5,8 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 data class StaticChoiceOptionValue(
     val originalOptionIndex: Int,
-    val protocolValue: Int,
+    /** Enum value in the window's static list; null for a type that has none and can be offered only by label. */
+    val protocolValue: Int?,
     val label: String? = null,
 )
 

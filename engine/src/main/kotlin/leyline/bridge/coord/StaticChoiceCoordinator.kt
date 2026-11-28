@@ -349,6 +349,12 @@ class StaticChoiceCoordinator(
         return allocation
     }
 
+    /**
+     * Offers every type in Forge's [validTypes], each with its enum value when it has one.
+     * Projection decides which types the request can show; the choice is answered without
+     * a prompt when it shows fewer than two, unless the choice is optional and shows one
+     * type, and falls back to the first type it shows.
+     */
     fun chooseSomeType(
         kindOfType: String,
         sa: SpellAbility?,
@@ -356,15 +362,18 @@ class StaticChoiceCoordinator(
         isOptional: Boolean,
     ): String? {
         val isCardType = kindOfType == "Card"
+        val types = if (isCardType) validTypes.toList() else validTypes.sorted()
+        val choices =
+            types.map { type -> type to if (isCardType) StaticChoiceIds.cardTypeIdFor(type) else StaticChoiceIds.subtypeIdFor(type) }
 
-        fun request(choices: List<Pair<String, Int>>) =
+        fun request(defaultIndex: Int = 0) =
             PromptRequest(
                 promptType = "choose_type",
                 message = "Choose a ${kindOfType.lowercase()} type",
                 options = choices.map { it.first },
                 min = if (isOptional) 0 else 1,
                 max = 1,
-                defaultIndex = 0,
+                defaultIndex = defaultIndex,
                 route =
                     PromptRouteResolver.resolve(
                         if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice,
@@ -374,26 +383,22 @@ class StaticChoiceCoordinator(
                 staticOptionIds = choices.map { it.second },
             )
 
-        // Only values with a protocol mapping can be shown; the rest cannot be chosen.
-        val choices =
-            if (isCardType) {
-                validTypes.mapNotNull { type -> StaticChoiceIds.cardTypeIdFor(type)?.let { type to it } }
-            } else {
-                validTypes.sorted().mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { type to it } }
-            }
-        if (choices.size < 2 && !(isOptional && choices.size == 1)) {
-            val answer = if (isOptional) null else choices.singleOrNull()?.first ?: validTypes.firstOrNull()
-            val recorded = if (choices.isEmpty()) validTypes.map { it to 0 } else choices
+        // Without a published window, only types with an enum value count as shown.
+        val shown =
+            bridge.publishingStaticChoiceRuntime()?.takeIf { choices.isNotEmpty() }?.shownOptions(request())
+                ?: choices.indices.filter { choices[it].second != null }
+        if (shown.size < 2 && !(isOptional && shown.size == 1)) {
+            val answer = if (isOptional) null else shown.firstOrNull()?.let { choices[it].first } ?: validTypes.firstOrNull()
             bridge.recordAutomaticAnswer(
-                request(recorded),
+                request(),
                 AutomaticAnswerRule.NoChoiceAmongShownOptions,
-                listOfNotNull(answer?.let { recorded.indexOfFirst { pair -> pair.first == it } }),
+                listOfNotNull(answer?.let { choices.indexOfFirst { pair -> pair.first == it } }),
             )
             return answer
         }
 
-        val idx = requestChoice(request(choices)).firstOrNull()
-        return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first
+        val idx = requestChoice(request(defaultIndex = shown.first())).firstOrNull()
+        return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices[shown.first()].first
     }
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")

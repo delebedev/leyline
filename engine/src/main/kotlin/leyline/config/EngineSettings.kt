@@ -52,7 +52,7 @@ data class EngineSettings(
     val draft: DraftSettings = DraftSettings(),
     /** Development-time diagnostics knobs. */
     val dev: DevSettings = DevSettings(),
-    /** Alternate additional-cost GRE labels. All connections to a match share this setting. */
+    /** Alternate cost and type-choice GRE labels. All connections to a match share this setting. */
     @SerialName("cost_choice_presentation")
     val costChoicePresentation: CostChoicePresentation = CostChoicePresentation.Native,
 ) {
