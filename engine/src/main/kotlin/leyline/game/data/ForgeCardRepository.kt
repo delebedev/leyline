@@ -11,6 +11,7 @@ import leyline.bridge.types.manaTokenToPair
 import leyline.game.InMemoryCardRepository
 import leyline.game.codes.SlotKind
 import wotc.mtgo.gre.external.messaging.Messages.CardType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.SuperType
 import java.nio.ByteBuffer
@@ -210,6 +211,17 @@ class ForgeCardRepository private constructor(
         ): String {
             val description = params["SpellDescription"] ?: params["TriggerDescription"] ?: params["Description"] ?: raw
             return params["RoomName"]?.let { "$it — $description" } ?: description
+        }
+
+        private fun rowLocalization(
+            raw: String,
+            params: Map<String, String>,
+            kind: SlotKind,
+            mana: List<Pair<ManaColor, Int>>,
+        ): AbilityLocalization {
+            val definition = if (kind == SlotKind.Keyword) keywordDefinition(raw) else null
+            val text = definition?.let { declaredKeywordText(raw, it) } ?: abilityText(params, raw)
+            return AbilityLocalization(text, mana, definition?.keyword?.toString())
         }
 
         private fun definitionKeywords(face: ICardFace): List<String> =
@@ -551,13 +563,7 @@ class ForgeCardRepository private constructor(
             categories += category
             rows.registerAbilityInfo(id, AbilityInfo(base, mana, category, if (kind == SlotKind.Mana) 1 else 0))
             val parsed = parseParams(raw)
-            val keyword =
-                Keyword
-                    .getInstance(raw)
-                    .keyword
-                    .takeIf { kind == SlotKind.Keyword && it != Keyword.UNDEFINED }
-                    ?.toString()
-            rows.registerAbilityLocalization(id, AbilityLocalization(abilityText(parsed, raw), mana, keyword))
+            rows.registerAbilityLocalization(id, rowLocalization(raw, parsed, kind, mana))
             val effect = modalEffect(raw, variables)
             effect["Choices"]
                 ?.split(",")

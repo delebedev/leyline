@@ -25,6 +25,37 @@ class ForgeCardRepositoryTest :
             }
         }
 
+        test("keyword-granted activated abilities read as their keyword title instead of the script declaration") {
+            val repo = ForgeCardRepository.open()
+
+            fun keywordTexts(name: String): List<String> {
+                val data = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName(name))))
+                return data.abilityIds
+                    .zip(data.abilityKinds)
+                    .filter { it.second == SlotKind.Keyword }
+                    .map { requireNotNull(repo.findAbilityLocalization(it.first.first)).text }
+            }
+            assertSoftly {
+                keywordTexts("Wizard's Staff") shouldBe listOf("Equip Wizard you control {1}", "Equip {3}")
+                keywordTexts("Bonesplitter") shouldBe listOf("Equip {1}")
+                keywordTexts("Darksteel Garrison") shouldBe listOf("Fortify {3}")
+                keywordTexts("Lion Sash") shouldBe listOf("Reconfigure {2}")
+                keywordTexts("Smuggler's Copter") shouldBe listOf("Flying", "Crew 1")
+                keywordTexts("Reaper's Scythe").last() shouldBe "Death Sickle — Equip {2}"
+            }
+        }
+
+        test("declared keywords with host-derived costs or calculated amounts stay symbolic") {
+            fun text(declaration: String) = declaredKeywordText(declaration, requireNotNull(keywordDefinition(declaration)))
+            assertSoftly {
+                text("Blitz:CardManaCost") shouldBe "Blitz"
+                text("Madness:ManaCost") shouldBe "Madness"
+                text("Cycling") shouldBe "Cycling"
+                text("Crew:N") shouldBe "Crew X"
+                text("Soulshift:N") shouldBe "Soulshift X"
+            }
+        }
+
         test("deck entry resolves typographic apostrophes without discarding punctuation") {
             val repo = ForgeCardRepository.open()
             assertSoftly {
