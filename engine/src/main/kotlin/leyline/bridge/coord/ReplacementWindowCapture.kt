@@ -42,19 +42,16 @@ internal class ReplacementWindowCapture(
                 if (grpId == 0) return null
                 val cardData = owner.bridge.cardRepository.findByGrpId(grpId) ?: return null
                 val ledger = owner.bridge.abilityIdentities.ledger
-                val abilityGrpId =
-                    owner.bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MADNESS)
-                        ?: return null.also {
-                            ledger.record(
-                                AbilityIdentityLedger.Site.Replacement,
-                                AbilityLookup.Missing(AbilityLookupMiss.NoRow),
-                            )
-                        }
-                val uniqueAbilityId =
-                    AbilityRegistry.uniqueAbilityIdFor(cardData, abilityGrpId)
-                        ?: return null.also {
-                            ledger.record(AbilityIdentityLedger.Site.Replacement, AbilityLookup.Missing(AbilityLookupMiss.NoOccurrence))
-                        }
+                val abilityGrpId = owner.bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MADNESS)
+                if (abilityGrpId == null) {
+                    ledger.record(AbilityIdentityLedger.Site.Replacement, AbilityLookup.Missing(AbilityLookupMiss.NoRow))
+                    return null
+                }
+                val uniqueAbilityId = AbilityRegistry.uniqueAbilityIdFor(cardData, abilityGrpId)
+                if (uniqueAbilityId == null) {
+                    ledger.record(AbilityIdentityLedger.Site.Replacement, AbilityLookup.Missing(AbilityLookupMiss.NoOccurrence))
+                    return null
+                }
                 ledger.record(
                     AbilityIdentityLedger.Site.Replacement,
                     AbilityLookup.Resolved(abilityGrpId, AbilityIdentitySource.KeywordRow),

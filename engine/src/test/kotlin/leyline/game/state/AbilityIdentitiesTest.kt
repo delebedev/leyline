@@ -54,6 +54,7 @@ class AbilityIdentitiesTest :
                 }
             val trigger = game.triggerHandler.delayedTriggersSnapshot.first { it.spawningAbility?.api == ApiType.Earthbend }
             val identities = bridge.abilityIdentities
+
             fun counted() = identities.ledger.resolvedBySource()["spawning-trigger/spawning-ability"] ?: 0
             val before = counted()
 
