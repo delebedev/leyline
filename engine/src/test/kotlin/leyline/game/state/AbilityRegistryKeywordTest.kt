@@ -350,6 +350,41 @@ class AbilityRegistryKeywordTest :
                 ledger.missedByReason() shouldBe mapOf("keyword-slot/no-row" to 1)
             }
         }
+
+        test("a keyword left without a row does not take the printed trigger's row") {
+            val board = startWithBoard { _, _, _ -> }
+            val rules =
+                CardRules.Reader().readCard(
+                    listOf(
+                        "Name:Unnamed Prowler",
+                        "ManaCost:1",
+                        "Types:Creature Human",
+                        "PT:1/1",
+                        "K:Prowess",
+                        "A:AB$ Pump | Cost$ 1 | Defined$ Self | NumAtt$ +1 | SpellDescription$ CARDNAME gets +1/+0.",
+                        "T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Card.Self | Execute$ TrigGain | " +
+                            "TriggerDescription$ When CARDNAME enters, you gain 1 life.",
+                        "SVar:TrigGain:DB$ GainLife | LifeAmount$ 1",
+                    ),
+                )
+            val card = Card.fromPaperCard(PaperCard(rules, "TST", CardRarity.Common), board.human)
+            val data = catalogCard(PROWLER_GRP_ID, listOf(ACTIVATED_ROW to 1, TRIGGER_ROW to 2))
+            val prowess =
+                card
+                    .getKeywords()
+                    .single { it.keyword == Keyword.PROWESS }
+                    .triggers
+                    .single()
+            val printed = card.triggers.single { it.isIntrinsic && it.definitionId != prowess.definitionId }
+            val ledger = AbilityIdentityLedger()
+
+            val registry = AbilityRegistry.build(card, data, ledger = ledger)
+
+            assertSoftly {
+                registry.forTrigger(printed.definitionId) shouldBe TRIGGER_ROW
+                ledger.missedByReason() shouldBe mapOf("keyword-slot/no-row" to 1)
+            }
+        }
     }) {
     private companion object {
         const val EMRAKUL_GRP_ID = 51281
@@ -359,6 +394,8 @@ class AbilityRegistryKeywordTest :
         const val TRIGGER_ROW = 9101
         const val SECOND_TRIGGER_ROW = 9102
         const val CYCLING_ROW = 9103
+        const val PROWLER_GRP_ID = 9200
+        const val ACTIVATED_ROW = 9201
 
         fun catalogCard(
             grpId: Int,

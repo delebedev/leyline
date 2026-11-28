@@ -378,11 +378,11 @@ class AbilityRegistry private constructor(
                 if (card.type.isDungeon) {
                     check(card.triggers.size == abilityIds.size) { "Dungeon room definitions must match catalog rows" }
                     card.triggers.zip(abilityIds).forEach { (trigger, row) -> triggerMap[trigger.definitionId] = row.first }
-                    KeywordRows(0, emptySet(), 0)
+                    KeywordRows(0, emptySet())
                 } else {
                     mapKeywords(card, cardData, rowKeywords, saMap, staticMap, triggerMap, keywordFamilies, keywordSlotIndices)
                 }
-            repeat(keywordRows.unbound) {
+            repeat(keywordRows.unbound.size) {
                 ledger?.record(AbilityIdentityLedger.Site.KeywordSlot, AbilityLookup.Missing(AbilityLookupMiss.NoRow))
             }
             val keywordCount = keywordRows.declarations
@@ -418,9 +418,9 @@ class AbilityRegistry private constructor(
             mapReconfigureUnattachAbilities(card, saMap)
             mapStationThresholdStatics(card, abilityIds, staticMap)
             mapManaAbilities(card, abilityIds, manaSlotIndices, fallbackGrpId, saMap)
-            mapUnclaimedIntrinsicTriggers(card, cardData, abilityIds, keywordRows.slots, triggerMap)
-            mapUnclaimedIntrinsicStatics(card, cardData, abilityIds, keywordRows.slots, staticMap)
-            mapUnclaimedLegacyStatics(card, cardData, abilityIds, keywordRows.slots, staticMap)
+            mapUnclaimedIntrinsicTriggers(card, cardData, abilityIds, keywordRows, triggerMap)
+            mapUnclaimedIntrinsicStatics(card, cardData, abilityIds, keywordRows, staticMap)
+            mapUnclaimedLegacyStatics(card, cardData, abilityIds, keywordRows, staticMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
             saMap.putAll(grantedKeywordIds)
 
@@ -538,15 +538,21 @@ class AbilityRegistry private constructor(
                 (0 until minOf(declarationCount, abilityIds.size)).mapNotNullTo(mutableSetOf()) {
                     slots[it] ?: it.takeIf { declaration -> declaration !in bindings }
                 }
-            return KeywordRows(declarationCount, claimed, bindings.keys.count { it !in slots })
+            return KeywordRows(declarationCount, claimed, bindings.filterKeys { it !in slots }.values.toList())
         }
 
         /** Declared keyword count, the catalog rows those declarations occupy, and live keywords bound to no row. */
         private data class KeywordRows(
             val declarations: Int,
             val slots: Set<Int>,
-            val unbound: Int,
-        )
+            val unbound: List<KeywordInterface> = emptyList(),
+        ) {
+            /** Trigger definitions of [unbound] keywords; they are not printed triggers and take no printed row. */
+            val unboundTriggers: Set<Int> = unbound.flatMap { it.triggers }.mapTo(mutableSetOf()) { it.definitionId }
+
+            /** Static definitions of [unbound] keywords; they are not printed statics and take no printed row. */
+            val unboundStatics: Set<Int> = unbound.flatMap { it.staticAbilities }.mapTo(mutableSetOf()) { it.definitionId }
+        }
 
         private fun bindKeywordDeclarations(
             declarations: List<String>,
@@ -668,13 +674,14 @@ class AbilityRegistry private constructor(
             card: Card,
             cardData: CardData,
             abilityIds: List<Pair<Int, Int>>,
-            keywordSlots: Set<Int>,
+            keywordRows: KeywordRows,
             triggerMap: MutableMap<Int, Int>,
         ) {
             if (cardData.abilityKinds.size != abilityIds.size) return
+            val keywordSlots = keywordRows.slots
             val triggers =
                 card.triggers
-                    ?.filter { it.isIntrinsic && it.definitionId !in triggerMap }
+                    ?.filter { it.isIntrinsic && it.definitionId !in triggerMap && it.definitionId !in keywordRows.unboundTriggers }
                     .orEmpty()
             if (triggers.isEmpty()) return
             val intrinsicSlots =
@@ -698,13 +705,14 @@ class AbilityRegistry private constructor(
             card: Card,
             cardData: CardData,
             abilityIds: List<Pair<Int, Int>>,
-            keywordSlots: Set<Int>,
+            keywordRows: KeywordRows,
             staticMap: MutableMap<Int, Int>,
         ) {
             if (cardData.abilityKinds.size != abilityIds.size) return
+            val keywordSlots = keywordRows.slots
             val statics =
                 card.staticAbilities
-                    ?.filter { it.definitionId !in staticMap }
+                    ?.filter { it.definitionId !in staticMap && it.definitionId !in keywordRows.unboundStatics }
                     .orEmpty()
             if (statics.isEmpty()) return
             val intrinsicSlots =
@@ -728,13 +736,14 @@ class AbilityRegistry private constructor(
             card: Card,
             cardData: CardData,
             abilityIds: List<Pair<Int, Int>>,
-            keywordSlots: Set<Int>,
+            keywordRows: KeywordRows,
             staticMap: MutableMap<Int, Int>,
         ) {
             if (cardData.abilityKinds.size == abilityIds.size) return
+            val keywordSlots = keywordRows.slots
             val statics =
                 card.staticAbilities
-                    ?.filter { it.definitionId !in staticMap }
+                    ?.filter { it.definitionId !in staticMap && it.definitionId !in keywordRows.unboundStatics }
                     .orEmpty()
             if (statics.isEmpty()) return
             val activatedCount =
