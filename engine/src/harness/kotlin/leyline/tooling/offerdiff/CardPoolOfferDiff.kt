@@ -6,6 +6,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.OfferDiff
 import leyline.bridge.OfferDiffBucket
 import leyline.bridge.OfferDiffDiagnostics
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.data.CardRepository
 import leyline.tooling.headless.HeadlessResponseMode
@@ -14,7 +15,7 @@ import leyline.tooling.headless.MatchFlowHarness
 /**
  * Runs [OfferDiff] over a list of cards, one game state per card and zone.
  *
- * Each state puts the card into one zone of the player's side at their first
+ * Each state puts the card into one zone it can occupy, on the player's side at their first
  * main phase, with lands that make enough mana of every colour, creatures for
  * sacrifice, mutate and target costs, and spare cards to discard. The diff runs
  * on the one priority window that state publishes.
@@ -31,7 +32,7 @@ class CardPoolOfferDiff(
         val extraPlays: List<String>,
         /** Differences on the card under test. */
         val findings: List<OfferDiffDiagnostics.Finding>,
-        /** Differences on the fixed cards every state carries. */
+        /** Differences outside the card in this zone: the fixed cards every state carries, and the card elsewhere. */
         val baselineFindings: List<OfferDiffDiagnostics.Finding> = emptyList(),
         val failures: Map<String, Int> = emptyMap(),
         /** Why no window was compared: the card failed to load or the game threw. */
@@ -104,8 +105,10 @@ class CardPoolOfferDiff(
                     .map { describe(it) }
                     .distinct()
             val snapshot = harness.bridge.offerDiffDiagnostics.snapshot()
-            val (own, baseline) = snapshot.findings.partition { it.key.card == card }
-            ZoneResult(card, zone, extra, own.filter { it.key.zone == zone.name }, baseline, snapshot.failures)
+            // One state publishes one window; any other count means the state did not run as built.
+            check(snapshot.windows == 1) { "compared ${snapshot.windows} windows, expected 1" }
+            val (own, baseline) = snapshot.findings.partition { it.key.card == card && it.key.zone == zone.name }
+            ZoneResult(card, zone, extra, own, baseline, snapshot.failures)
         } catch (ex: Exception) {
             ZoneResult(card, zone, emptyList(), emptyList(), error = "${ex::class.simpleName}: ${ex.message?.take(ERROR_LENGTH)}")
         } finally {
@@ -116,23 +119,34 @@ class CardPoolOfferDiff(
     fun runAll(
         cards: List<String>,
         onResult: (ZoneResult) -> Unit = {},
-    ): List<ZoneResult> =
-        cards.flatMap { card ->
-            // Checked per zone: Forge's card data loads with the first game.
-            zones.mapNotNull { zone ->
-                if (zone == ZoneType.Battlefield && !canBeOnBattlefield(card)) null else run(card, zone).also(onResult)
-            }
+    ): List<ZoneResult> {
+        GameBootstrap.initializeCardDatabase(quiet = true)
+        return cards.flatMap { card ->
+            zones.filter { canOccupy(card, it) }.map { zone -> run(card, zone).also(onResult) }
         }
+    }
 
-    /** An instant or sorcery cannot be placed on the battlefield. An unknown name is kept so it reports an error. */
-    private fun canBeOnBattlefield(card: String): Boolean =
-        StaticData
-            .instance()
-            .commonCards
-            .getCard(card)
-            ?.rules
-            ?.type
-            ?.isPermanent ?: true
+    /**
+     * An instant or sorcery is never on the battlefield, and only a card that can
+     * be a commander starts in the command zone. An unknown name is kept so it
+     * reports an error.
+     */
+    private fun canOccupy(
+        card: String,
+        zone: ZoneType,
+    ): Boolean {
+        val rules =
+            StaticData
+                .instance()
+                .commonCards
+                .getCard(card)
+                ?.rules ?: return true
+        return when (zone) {
+            ZoneType.Battlefield -> rules.type.isPermanent
+            ZoneType.Command -> rules.canBeCommander()
+            else -> true
+        }
+    }
 
     /** The ordinary cast from hand and the land play are what every card has; neither is coverage. */
     private fun isBasePlay(sa: SpellAbility): Boolean =
