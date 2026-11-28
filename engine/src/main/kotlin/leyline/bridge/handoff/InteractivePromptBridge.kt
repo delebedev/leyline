@@ -610,12 +610,11 @@ class InteractivePromptBridge(
         }
     }
 
-    /** Route one static enum SelectN request through its frozen protocol values. */
-
     /** The static-choice runtime when a request from this thread would publish a window. */
     internal fun publishingStaticChoiceRuntime(): StaticChoiceInteractionRuntime? =
         runtimeBindings.staticChoice.takeIf { NonInteractiveScope.active == null && isGameLoopThread() && timeoutMs != 0L }
 
+    /** Route one static enum SelectN request through its frozen protocol values. */
     fun requestStaticChoice(request: PromptRequest): List<Int> {
         check(request.route is ResolvedPromptRoute.StaticChoice) { "StaticChoice route required" }
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {

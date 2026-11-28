@@ -304,6 +304,17 @@ class StaticChoiceCoordinatorTest :
             }
         }
 
+        test("a required type choice that shows no type answers Forge's first type, not the sorted first") {
+            val board = startPuzzleAtMain1(puzzle)
+            val controller = board.human.controller as PlayerController
+            val sa =
+                board.human.battlefield
+                    .card("Island")
+                    .spellAbilities
+                    .first()
+            controller.chooseSomeType("Creature", sa, listOf("Zorblax", "Abcdex"), false) shouldBe "Zorblax"
+        }
+
         test("a type choice without a published window falls back to the first type with an enum value") {
             val board = startPuzzleAtMain1(puzzle)
             val controller = board.human.controller as PlayerController

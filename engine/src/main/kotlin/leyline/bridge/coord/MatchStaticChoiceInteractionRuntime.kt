@@ -52,8 +52,15 @@ internal class MatchStaticChoiceInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    override fun shownOptions(request: PromptRequest): List<Int> =
-        owner.feed(owner.humanSeat).builder.staticChoiceShownOptions(StaticChoiceWindowCapture.initial(request))
+    override fun shownOptions(request: PromptRequest): List<Int> {
+        val initial =
+            try {
+                StaticChoiceWindowCapture.initial(request)
+            } catch (ex: Exception) {
+                owner.fail(ex)
+            }
+        return owner.feed(owner.humanSeat).builder.staticChoiceShownOptions(initial)
+    }
 
     fun current(): PublishedStaticChoiceInteraction? = slot.current()?.published
 

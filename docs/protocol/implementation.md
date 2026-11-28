@@ -1606,9 +1606,10 @@ modes differ:
 - `Native` keeps the restricted enum list and leaves out the types without an
   enum value, which the player cannot choose.
 
-A choice that shows fewer than two types is answered without a prompt: under
-`Native`, the one type with an enum value, or Forge's first type when none
-has one. A timeout falls back to the first type shown.
+A choice that shows fewer than two types is answered without a prompt, unless
+the choice is optional and shows one type: under `Native`, the one type with
+an enum value, or Forge's first type when none has one. A timeout falls back
+to the first type shown.
 
 - Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`, `StaticChoiceWindowMaterializer`, `StaticChoiceCoordinator.chooseSomeType`, `MatchStaticChoiceInteractionRuntime`
 

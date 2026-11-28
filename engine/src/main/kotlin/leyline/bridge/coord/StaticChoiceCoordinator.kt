@@ -352,7 +352,8 @@ class StaticChoiceCoordinator(
     /**
      * Offers every type in Forge's [validTypes], each with its enum value when it has one.
      * Projection decides which types the request can show; the choice is answered without
-     * a prompt when it shows fewer than two, and falls back to the first type it shows.
+     * a prompt when it shows fewer than two, unless the choice is optional and shows one
+     * type, and falls back to the first type it shows.
      */
     fun chooseSomeType(
         kindOfType: String,
@@ -387,7 +388,7 @@ class StaticChoiceCoordinator(
             bridge.publishingStaticChoiceRuntime()?.takeIf { choices.isNotEmpty() }?.shownOptions(request())
                 ?: choices.indices.filter { choices[it].second != null }
         if (shown.size < 2 && !(isOptional && shown.size == 1)) {
-            val answer = if (isOptional) null else (shown.firstOrNull() ?: 0).let { choices.getOrNull(it)?.first }
+            val answer = if (isOptional) null else shown.firstOrNull()?.let { choices[it].first } ?: validTypes.firstOrNull()
             bridge.recordAutomaticAnswer(
                 request(),
                 AutomaticAnswerRule.NoChoiceAmongShownOptions,

@@ -105,7 +105,8 @@ source selection and presentation.
 subtypes sorted, each with its CardTypes or SubTypes enum value when it has
 one. Projection decides which types the request shows; see
 [Forge-text choice labels](protocol/implementation.md#forge-text-choice-labels).
-A choice that shows fewer than two types is answered without a prompt, and a
+A choice that shows fewer than two types is answered without a prompt, unless
+the choice is optional and shows one type, and a
 timeout falls back to the first type shown.
 
 Attacker alternatives are committed with the combat declaration. Exert and
