@@ -237,4 +237,38 @@ class EffectCardChoiceTest :
                 human.battlefield.card("Dragon's Disciple").netToughness shouldBe 4
             }
         }
+
+        for (cast in listOf(true, false)) {
+            session(
+                "Svella's top-four cast offers the revealed spells cast=$cast",
+                puzzle = """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanbattlefield=Svella, Ice Shaper;Mountain;Mountain;Mountain;Mountain;Forest;Forest;Forest;Forest
+                    humanlibrary=Llanowar Elves;Grizzly Bears;Forest;Forest;Island;Island
+                    ailibrary=Forest;Forest;Forest
+                """,
+            ) {
+                activateAbility("Svella, Ice Shaper", 1)
+                passUntil { allMessages.any { it.hasSelectNReq() } }
+                val message = allMessages.last { it.hasSelectNReq() }
+                val req = message.selectNReq
+                val offered = req.idsList.associateBy { cardByIid(it)?.name }
+                assertSoftly {
+                    message.prompt.promptId shouldBe PromptIds.CHOOSE_CARD
+                    offered.keys shouldBe setOf("Llanowar Elves", "Grizzly Bears")
+                    req.minSel shouldBe 0
+                    req.maxSel shouldBe 1
+                }
+                respondToSelectN(if (cast) listOf(offered.getValue("Grizzly Bears")) else emptyList())
+                passUntilResolved()
+                assertSoftly {
+                    ("Grizzly Bears" in human.getZone(ZoneType.Battlefield).cards.map { it.name }) shouldBe cast
+                    ("Llanowar Elves" in human.getZone(ZoneType.Battlefield).cards.map { it.name }) shouldBe false
+                    human.getZone(ZoneType.Library).cards.size shouldBe if (cast) 5 else 6
+                }
+            }
+        }
     })

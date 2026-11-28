@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 
@@ -112,6 +113,20 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
+        test("Play over exact library Card candidates selects the library choice") {
+            val plan = planFor(playSa(), isOptional = true, candidateRefs = libraryRefs)
+
+            assertSoftly(plan) {
+                routePolicy shouldBe ChooseSingleEntityRoutePolicy.Prompt
+                semantic shouldBe PromptSemantic.SelectNResolution
+                min shouldBe 0
+                resolutionRouteInput?.abilityShape shouldBe ResolutionAbilityShape.LibraryChoice
+                resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe true
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+            }
+        }
+
         test("source-aware paths include the host card id") {
             assertSoftly {
                 planFor(learnSa()).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
@@ -198,6 +213,8 @@ private fun manifestDreadSa(): SpellAbility = abilitySub(ApiType.ManifestDread)
 private fun genericSa(): SpellAbility = abilitySub(ApiType.ChooseCard)
 
 private fun digSa(): SpellAbility = abilitySub(ApiType.Dig)
+
+private fun playSa(): SpellAbility = abilitySub(ApiType.Play)
 
 private fun abilitySub(
     api: ApiType,
