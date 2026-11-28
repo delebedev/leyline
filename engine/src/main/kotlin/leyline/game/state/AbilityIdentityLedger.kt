@@ -45,6 +45,9 @@ class AbilityIdentityLedger(
         /** An activated offer's row and occurrence. */
         Activated("activated"),
 
+        /** An intrinsic keyword declaration's catalog row while a registry is built. */
+        KeywordSlot("keyword-slot"),
+
         /** A granted keyword's row read while translating a Forge game event. */
         Event("event"),
 

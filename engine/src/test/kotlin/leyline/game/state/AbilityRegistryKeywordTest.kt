@@ -306,7 +306,7 @@ class AbilityRegistryKeywordTest :
             }
         }
 
-        test("positional keyword rows give Annihilator Flying's row and the row check counts it") {
+        test("the row check counts Annihilator on Flying's row, where positional keyword rows put it") {
             val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val emrakul = TestCardInjector.inject(bridge, 2, "Emrakul, the Aeons Torn", ZoneType.Battlefield).card
             val repository = emrakulCatalog()
@@ -317,16 +317,37 @@ class AbilityRegistryKeywordTest :
                     .triggers
                     .single()
             val ability = annihilator.ensureAbility().also { it.trigger = annihilator }
-            val positional = AbilityRegistry.build(emrakul, checkNotNull(repository.findByGrpId(EMRAKUL_GRP_ID)))
-            val positionalRow = checkNotNull(positional.forTrigger(annihilator.definitionId))
             val ledger = AbilityIdentityLedger(RowAgreement(repository))
 
-            ledger.checkRow(AbilityIdentityLedger.Site.Trigger, ability, positionalRow)
+            ledger.checkRow(AbilityIdentityLedger.Site.Trigger, ability, FLYING_ROW)
             ledger.checkRow(AbilityIdentityLedger.Site.Trigger, ability, ANNIHILATOR_SIX_ROW)
 
             assertSoftly {
-                positionalRow shouldBe FLYING_ROW
                 ledger.rowMismatches() shouldBe mapOf("trigger/Emrakul, the Aeons Torn: Annihilator keyword on row $FLYING_ROW" to 1)
+            }
+        }
+
+        test("a keyword the catalog does not name skips a printed trigger row in its declaration position") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val sojourners = TestCardInjector.inject(bridge, 1, "Grixis Sojourners", ZoneType.Hand).card
+            val rows = listOf(TRIGGER_ROW to 2, SECOND_TRIGGER_ROW to 2, CYCLING_ROW to 1)
+            val data = catalogCard(SOJOURNERS_GRP_ID, rows)
+            val cycling =
+                sojourners
+                    .getKeywords()
+                    .single { it.keyword == Keyword.CYCLING }
+                    .abilities
+                    .single()
+            val ledger = AbilityIdentityLedger()
+            val registry = AbilityRegistry.build(sojourners, data, ledger = ledger)
+            val identity = AbilityRegistry.resolveActivated(sojourners, cycling, { data }, { _, _ -> registry })
+
+            assertSoftly {
+                sojourners.triggers.filter { it.isIntrinsic }.map { registry.forTrigger(it.definitionId) } shouldBe
+                    listOf(TRIGGER_ROW, SECOND_TRIGGER_ROW)
+                identity.abilityGrpId shouldBe CYCLING_ROW
+                identity.uniqueAbilityId shouldBe 52
+                ledger.missedByReason() shouldBe mapOf("keyword-slot/no-row" to 1)
             }
         }
     }) {
@@ -334,6 +355,28 @@ class AbilityRegistryKeywordTest :
         const val EMRAKUL_GRP_ID = 51281
         const val FLYING_ROW = 8
         const val ANNIHILATOR_SIX_ROW = 15700
+        const val SOJOURNERS_GRP_ID = 9100
+        const val TRIGGER_ROW = 9101
+        const val SECOND_TRIGGER_ROW = 9102
+        const val CYCLING_ROW = 9103
+
+        fun catalogCard(
+            grpId: Int,
+            rows: List<Pair<Int, Int>>,
+        ) = CardData(
+            grpId = grpId,
+            titleId = 0,
+            power = "",
+            toughness = "",
+            colors = emptyList(),
+            types = emptyList(),
+            subtypes = emptyList(),
+            supertypes = emptyList(),
+            manaCost = emptyList(),
+            abilityIds = rows.map { it.first to 0 },
+            abilityKinds = rows.map { SlotKind.fromCategory(it.second) },
+            abilityCategories = rows.map { it.second },
+        )
 
         /**
          * Emrakul's catalog shape: its keywords sit between its triggers and statics, and Annihilator and
