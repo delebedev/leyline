@@ -78,6 +78,22 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: hand, card: Nightpack Ambusher }
             - stack_empty: true
+  - id: mystical-teachings-flat-search
+    puzzle: mystical-teachings-flat-search
+    run: cast Mystical Teachings with only instants in the library, choose Lightning Bolt, and finish resolving
+    expect: an ordinary SearchReq returns Lightning Bolt to hand
+    steps:
+      - expect:
+          action: { type: cast, card: Mystical Teachings }
+      - cast: Mystical Teachings
+      - pass_until:
+          prompt: { type: SearchReq }
+      - search_cards: { side: ours, cards: [Lightning Bolt] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Lightning Bolt }
+            - stack_empty: true
   - id: kami-hand-land-select
     puzzle: kami-hand-land-select
     web:

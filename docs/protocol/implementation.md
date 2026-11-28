@@ -869,6 +869,14 @@ grouped by family, then by entity.
   - Contract: the prompt ID is specific to the search effect.
   - Leyline: uses `3713` for every grouped search.
   - Owner: `SearchWindowMaterializer`
+- **`compat`** — [Request](prompts/SearchFromGroupsReq.md#request)
+  - Contract: the legal cards are split into groups; the request when one
+    group has no legal card is an
+    [open point](prompts/SearchFromGroupsReq.md#open-points).
+  - Leyline: sends an ordinary SearchReq when one group has no legal card. A
+    card that qualifies for both groups also gets an ordinary SearchReq, so the
+    request never breaks `SearchFromGroupsReq.disjoint-groups`.
+  - Owner: `GroupedSearchClassifier`
 
 #### SearchReq
 
