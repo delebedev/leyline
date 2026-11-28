@@ -3,6 +3,7 @@ package leyline.game.state
 import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.keyword.Keyword
+import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.maps.shouldContainKey
@@ -12,6 +13,7 @@ import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.AbilityIdentitySource
 import leyline.bridge.types.AbilityLookup
 import leyline.bridge.types.AbilityLookupMiss
+import leyline.game.snapshot.PendingTriggerCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.TestCardInjector
 
@@ -115,6 +117,29 @@ class AbilityIdentitiesTest :
                 beforeStack shouldBe MODAL_ROW
                 onStack shouldBe MODAL_ROW
                 mode() shouldNotBe MODAL_ROW
+            }
+        }
+
+        test("a modal trigger's chosen mode retires once its wrapped entry leaves the stack") {
+            val board = startWithBoard { _, human, _ -> addCard("Charming Prince", human, ZoneType.Battlefield) }
+            val (bridge, game, _) = board
+            val prince = board.human.battlefield.card("Charming Prince")
+            val trigger = prince.triggers.single { it.overridingAbility != null }
+            val wrapped = WrappedAbility(trigger, trigger.overridingAbility, board.human)
+            val modal = wrapped.wrappedAbility.rootAbility
+            val identities = bridge.abilityIdentities
+            identities.recordSelectedModalAbilityGrpId(modal.id, MODAL_ROW)
+
+            game.stack.addAndUnfreeze(wrapped)
+            PendingTriggerCapture.run(game, bridge)
+            val onStack = identities.lookupPrompt(prince, modal).valueOrNull()?.abilityGrpId
+            game.stack.remove(game.stack.first())
+            PendingTriggerCapture.run(game, bridge)
+
+            assertSoftly {
+                PendingTriggerCapture.stackRootAbilityIds(game) shouldBe emptySet()
+                onStack shouldBe MODAL_ROW
+                identities.lookupPrompt(prince, modal).valueOrNull()?.abilityGrpId shouldNotBe MODAL_ROW
             }
         }
     }) {

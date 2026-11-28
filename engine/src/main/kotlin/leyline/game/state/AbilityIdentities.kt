@@ -291,7 +291,7 @@ class AbilityIdentities(
      */
     fun retainPendingTriggerAbilityIdentities(
         triggerIds: Set<Int>,
-        stackRootAbilityIds: Set<Int> = emptySet(),
+        stackRootAbilityIds: Set<Int>,
     ) {
         pendingTriggerAbilityGrpIds.keys.removeIf { it !in triggerIds }
         pendingTriggerCleanupGrpIds.keys.removeIf { it !in triggerIds }
