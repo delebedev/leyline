@@ -47,7 +47,7 @@ class ModalChoicePromptAdapterTest :
             runtime = { error("fallback must not resolve a runtime") },
             prioritySignal = null,
             record = { _, outcome, _ -> records += outcome },
-            askByLabel = { error("fallback must not ask by label") },
+            labelRuntime = { error("fallback must not ask by label") },
         )
 
         fun answeredAdapter(
@@ -70,47 +70,124 @@ class ModalChoicePromptAdapterTest :
             },
             prioritySignal = null,
             record = { _, status, _ -> records += status },
-            askByLabel = { error("identified modes must not ask by label") },
+            labelRuntime = { error("identified modes must not ask by label") },
+        )
+
+        fun labelAdapter(
+            records: MutableList<PromptCallStatus> = mutableListOf(),
+            identifies: () -> Boolean = { false },
+            answer: (PromptRequest) -> List<Int>,
+        ) = ModalChoicePromptAdapter(
+            timeoutMs = null,
+            strict = false,
+            isGameLoopThread = { true },
+            runtime = {
+                object : ModalChoiceInteractionRuntime {
+                    override fun identifiesModes(
+                        possible: List<AbilitySub>,
+                        sourceCard: Card,
+                        sourceAbility: SpellAbility,
+                    ) = identifies()
+
+                    override fun awaitSelection(
+                        request: PromptRequest,
+                        possible: List<AbilitySub>,
+                        sourceCard: Card,
+                        sourceAbility: SpellAbility,
+                        timeoutMs: Long?,
+                    ): ModalChoiceInteractionResult = error("unidentified modes must not open a modal window")
+                }
+            },
+            prioritySignal = null,
+            record = { _, status, _ -> records += status },
+            labelRuntime = {
+                object : StaticChoiceInteractionRuntime {
+                    override fun shownOptions(request: PromptRequest) = request.options.indices.toList()
+
+                    override fun awaitSelection(
+                        request: PromptRequest,
+                        timeoutMs: Long?,
+                    ) = answer(request)
+                }
+            },
         )
 
         test("options without client mode identities are asked as a named label choice") {
             val asked = mutableListOf<PromptRequest>()
             val choices = listOf(handle(), handle())
-            val adapter =
-                ModalChoicePromptAdapter(
-                    timeoutMs = null,
-                    strict = false,
-                    isGameLoopThread = { true },
-                    runtime = {
-                        object : ModalChoiceInteractionRuntime {
-                            override fun identifiesModes(
-                                possible: List<AbilitySub>,
-                                sourceCard: Card,
-                                sourceAbility: SpellAbility,
-                            ) = false
 
-                            override fun awaitSelection(
-                                request: PromptRequest,
-                                possible: List<AbilitySub>,
-                                sourceCard: Card,
-                                sourceAbility: SpellAbility,
-                                timeoutMs: Long?,
-                            ): ModalChoiceInteractionResult = error("unidentified modes must not open a modal window")
-                        }
-                    },
-                    prioritySignal = null,
-                    record = { _, _, _ -> },
-                    askByLabel = { request -> listOf(1).also { asked += request } },
-                )
-
-            val result = adapter.request(request(), choices, choices[0].hostCard, choices[0])
+            val result =
+                labelAdapter { request -> listOf(1).also { asked += request } }
+                    .request(request(), choices, choices[0].hostCard, choices[0])
 
             assertSoftly {
                 result shouldBe listOf(choices[1])
                 asked.single().route shouldBe PromptRouteResolver.resolve(PromptSemantic.NamedChoice)
                 asked.single().options shouldBe listOf("one", "two")
                 asked.single().staticOptionIds shouldBe listOf(1, 2)
+                asked.single().allowCancel shouldBe true
             }
+        }
+
+        test("an optional vote asked by label abstains on timeout") {
+            val records = mutableListOf<PromptCallStatus>()
+            val choices = listOf(handle(), handle())
+            val vote = request().copy(min = 0, route = ResolvedPromptRoute.ModalChoice(PromptSemantic.VoteChoice))
+
+            val result =
+                labelAdapter(records) { throw StaticChoiceInteractionTimeoutException() }
+                    .request(vote, choices, choices[0].hostCard, choices[0])
+
+            assertSoftly {
+                result.shouldBeEmpty()
+                records shouldBe listOf(PromptCallStatus.TIMEOUT)
+            }
+        }
+
+        test("a cancelled cast-time label choice unwinds the cast") {
+            val choices = listOf(handle(), handle())
+            val records = mutableListOf<PromptCallStatus>()
+            shouldThrow<ModalCastCancelledException> {
+                labelAdapter(records) { throw StaticChoiceCancelledException() }
+                    .request(request(), choices, choices[0].hostCard, choices[0])
+            }
+            records shouldBe listOf(PromptCallStatus.RESPONDED)
+        }
+
+        test("a repeatable choice is asked one pick at a time until the player stops") {
+            val asked = mutableListOf<PromptRequest>()
+            val answers = ArrayDeque(listOf(listOf(1), listOf(1), emptyList()))
+            val choices = listOf(handle(), handle())
+            val repeatable = request().copy(min = 2, max = 3, allowRepeat = true)
+
+            val result =
+                labelAdapter { request -> answers.removeFirst().also { asked += request } }
+                    .request(repeatable, choices, choices[0].hostCard, choices[0])
+
+            assertSoftly {
+                result shouldBe listOf(choices[1], choices[1])
+                asked.map { it.min to it.max } shouldBe listOf(1 to 1, 1 to 1, 0 to 1)
+            }
+        }
+
+        test("a minimum above the offered options is capped for the label choice") {
+            val asked = mutableListOf<PromptRequest>()
+            val choices = listOf(handle(), handle())
+
+            labelAdapter { request -> listOf(0, 1).also { asked += request } }
+                .request(request().copy(min = 3, max = 3), choices, choices[0].hostCard, choices[0])
+
+            asked.single().let { it.min to it.max } shouldBe (2 to 2)
+        }
+
+        test("a failed mode identity lookup is recorded as a prompt error") {
+            val records = mutableListOf<PromptCallStatus>()
+            val choice = handle()
+            shouldThrow<IllegalStateException> {
+                labelAdapter(records, identifies = { error("repository unavailable") }) { emptyList() }
+                    .request(request(), listOf(choice), choice.hostCard, choice)
+            }
+            records shouldBe listOf(PromptCallStatus.ERROR)
         }
 
         test("cast cancellation unwinds without being recorded as a prompt error") {

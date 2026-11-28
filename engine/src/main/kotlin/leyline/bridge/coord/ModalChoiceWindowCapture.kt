@@ -24,7 +24,11 @@ internal class ModalChoiceWindowCapture(
         val aiContext: ModalChoiceAiContext,
     )
 
-    /** True when the source card's client data lists a mode identity for every option in [possible]. */
+    /**
+     * True when the source card's client modal ability lists one mode per option of
+     * [sourceAbility]. The repository answers with the card's first modal ability, so a
+     * list of another length belongs to a different ability of the same card.
+     */
     fun identifiesModes(
         possible: List<AbilitySub>,
         sourceCard: Card,
@@ -37,9 +41,7 @@ internal class ModalChoiceWindowCapture(
                 ?.let(repository::lookupModalOptions)
                 ?.childGrpIds ?: return false
         val fullList = sourceAbility.getAdditionalAbilityList("Choices")
-        return possible.withIndex().all { (optionIndex, sub) ->
-            (fullList?.indexOf(sub) ?: optionIndex) in childGrpIds.indices
-        }
+        return childGrpIds.size == (fullList?.size ?: possible.size) && (fullList == null || fullList.containsAll(possible))
     }
 
     fun capture(

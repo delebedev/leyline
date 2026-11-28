@@ -83,7 +83,7 @@ class InteractivePromptBridge(
             runtime = { runtimeBindings.modalChoice },
             prioritySignal = prioritySignal,
             record = ::record,
-            askByLabel = { requestStaticChoice(it) },
+            labelRuntime = { runtimeBindings.staticChoice },
         )
 
     /**
@@ -999,6 +999,8 @@ data class PromptRequest(
      * A type choice marks a type without an enum value with null.
      */
     val staticOptionIds: List<Int?> = emptyList(),
+    /** A static choice the player may cancel; the runtime then throws [StaticChoiceCancelledException]. */
+    val allowCancel: Boolean = false,
     /** Waterbend mana component carried into its PayCostsReq payment envelope. */
     val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
     /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */

@@ -51,6 +51,7 @@ internal object StaticChoiceWindowCapture {
             min = request.min,
             max = request.max,
             defaultOptionIndex = request.defaultIndex,
+            allowCancel = request.allowCancel,
         )
     }
 

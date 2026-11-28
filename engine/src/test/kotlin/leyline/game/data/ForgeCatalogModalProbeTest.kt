@@ -164,55 +164,59 @@ class ForgeCatalogModalProbeTest :
             }
         }
 
-        test("repeated generic choice without client mode identities asks each repetition as a named label choice") {
-            forgeCatalogProbe(
-                "repeat-generic-choice-named-labels",
-                "ActivePlayer=AI\n" +
-                    "aihand=Torment of Hailfire\n" +
-                    "aibattlefield=Swamp;Swamp;Swamp;Swamp\n" +
-                    "humanhand=Forest;Forest\n" +
-                    "humanbattlefield=Grizzly Bears",
-                responseMode = HeadlessResponseMode.PolicyVisible,
-                serve = { repo ->
-                    object : CardRepository by repo {
-                        override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = null
+        // The second client data lists three modes of an unrelated modal ability on the same card.
+        for ((clientModes, unrelatedModes) in listOf("no client modes" to null, "an unrelated modal ability" to listOf(-1, -2, -3))) {
+            test("repeated generic choice with $clientModes asks each repetition as a named label choice") {
+                forgeCatalogProbe(
+                    "repeat-generic-choice-named-labels-${unrelatedModes?.size ?: 0}",
+                    "ActivePlayer=AI\n" +
+                        "aihand=Torment of Hailfire\n" +
+                        "aibattlefield=Swamp;Swamp;Swamp;Swamp\n" +
+                        "humanhand=Forest;Forest\n" +
+                        "humanbattlefield=Grizzly Bears",
+                    responseMode = HeadlessResponseMode.PolicyVisible,
+                    serve = { repo ->
+                        object : CardRepository by repo {
+                            override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? =
+                                unrelatedModes?.let { ModalAbilityInfo(parentGrpId = -10, childGrpIds = it) }
+                        }
+                    },
+                ) {
+                    fun resolved() = game().stack.isEmpty && ai.graveyard.cards.any { it.name == "Torment of Hailfire" }
+                    val choices = mutableListOf<SelectNReq>()
+                    repeat(12) {
+                        if (resolved()) return@repeat
+                        passUntil(maxPasses = 40) { bridge.hasPendingNonActionInteraction() || resolved() }
+                        if (!bridge.hasPendingNonActionInteraction()) return@repeat
+                        val prompt = allMessages.last()
+                        check(prompt.hasSelectNReq()) { "Unexpected prompt ${prompt.type}" }
+                        val selectN = prompt.selectNReq
+                        if (selectN.idType == IdType.PromptParameterIndex) {
+                            choices += selectN
+                            // The second label is the discard mode.
+                            respondToSelectN(listOf(selectN.getIds(1)))
+                        } else {
+                            // Pay the discard on the first repetition, decline it on the second.
+                            respondToSelectN(selectN.idsList.take(if (choices.size == 1) 1 else 0))
+                        }
                     }
-                },
-            ) {
-                fun resolved() = game().stack.isEmpty && ai.graveyard.cards.any { it.name == "Torment of Hailfire" }
-                val choices = mutableListOf<SelectNReq>()
-                repeat(12) {
-                    if (resolved()) return@repeat
-                    passUntil(maxPasses = 40) { bridge.hasPendingNonActionInteraction() || resolved() }
-                    if (!bridge.hasPendingNonActionInteraction()) return@repeat
-                    val prompt = allMessages.last()
-                    check(prompt.hasSelectNReq()) { "Unexpected prompt ${prompt.type}" }
-                    val selectN = prompt.selectNReq
-                    if (selectN.idType == IdType.PromptParameterIndex) {
-                        choices += selectN
-                        // The second label is the discard mode.
-                        respondToSelectN(listOf(selectN.getIds(1)))
-                    } else {
-                        // Pay the discard on the first repetition, decline it on the second.
-                        respondToSelectN(selectN.idsList.take(if (choices.size == 1) 1 else 0))
+                    assertSoftly {
+                        resolved().shouldBeTrue()
+                        allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+                        choices.size shouldBe 2
+                        choices.forEach { choice ->
+                            choice.listType shouldBe SelectionListType.Dynamic
+                            choice.idsList shouldBe listOf(1, 2)
+                            choice.prompt.parametersList.map { it.stringValue } shouldBe
+                                listOf(
+                                    "You lose 3 life unless you sacrifice a nonland permanent.",
+                                    "You lose 3 life unless you discard a card.",
+                                )
+                        }
+                        human.life shouldBe 17
+                        human.graveyard.cards.map { it.name } shouldBe listOf("Forest")
+                        game().isGameOver shouldBe false
                     }
-                }
-                assertSoftly {
-                    resolved().shouldBeTrue()
-                    allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
-                    choices.size shouldBe 2
-                    choices.forEach { choice ->
-                        choice.listType shouldBe SelectionListType.Dynamic
-                        choice.idsList shouldBe listOf(1, 2)
-                        choice.prompt.parametersList.map { it.stringValue } shouldBe
-                            listOf(
-                                "You lose 3 life unless you sacrifice a nonland permanent.",
-                                "You lose 3 life unless you discard a card.",
-                            )
-                    }
-                    human.life shouldBe 17
-                    human.graveyard.cards.map { it.name } shouldBe listOf("Forest")
-                    game().isGameOver shouldBe false
                 }
             }
         }
