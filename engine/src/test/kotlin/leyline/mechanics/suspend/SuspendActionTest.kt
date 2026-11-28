@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.BoardTest
+import leyline.testkit.lostPlays
 import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
@@ -31,6 +32,7 @@ class SuspendActionTest :
                     addCard("Wheel of Fate", human, ZoneType.Hand)
                     addCard("Rift Bolt", human, ZoneType.Hand)
                 }
+            board.offerDiff().lostPlays() shouldBe emptyList()
             val repo = board.bridge.cardRepository
             val actions = board.actions()
 

@@ -1,5 +1,7 @@
 package leyline.tooling.simclient
 
+import leyline.bridge.OfferDiffDiagnostics
+import leyline.config.EngineSettings
 import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
@@ -120,6 +122,9 @@ class SimClientRunner internal constructor(
         return stats
     }
 
+    private fun engineSettings(): EngineSettings =
+        MatchFlowHarness.headlessEngineSettings().let { it.copy(dev = it.dev.copy(offerDiff = config.offerDiff)) }
+
     private fun createHarness(row: SimClientRow): MatchFlowHarness =
         when (row) {
             is DeckSimClientRow ->
@@ -131,6 +136,7 @@ class SimClientRunner internal constructor(
                     validationStrict = false,
                     cardRepositoryOverride = cardRepo,
                     responseMode = HeadlessResponseMode.PolicyVisible,
+                    engineSettings = engineSettings(),
                 )
             is PuzzleSimClientRow ->
                 MatchFlowHarness(
@@ -140,6 +146,7 @@ class SimClientRunner internal constructor(
                     validationStrict = false,
                     cardRepositoryOverride = cardRepo,
                     responseMode = HeadlessResponseMode.PolicyVisible,
+                    engineSettings = engineSettings(),
                 )
         }
 
@@ -299,6 +306,7 @@ class SimClientRunner internal constructor(
             completionReason = "wall-timeout",
             offeredWhileUnsureByCard = affordability?.offeredWhileUnsureByCard.orEmpty(),
             offeredThenPaymentFailedByCard = affordability?.offeredThenPaymentFailedByCard.orEmpty(),
+            offerDiff = offerDiffSnapshot(harness),
         ).withIdentityLedger(harness)
     }
 
@@ -326,6 +334,7 @@ class SimClientRunner internal constructor(
             completionReason = "exception",
             offeredWhileUnsureByCard = affordability?.offeredWhileUnsureByCard.orEmpty(),
             offeredThenPaymentFailedByCard = affordability?.offeredThenPaymentFailedByCard.orEmpty(),
+            offerDiff = offerDiffSnapshot(harness),
         ).withIdentityLedger(harness)
     }
 
@@ -403,7 +412,17 @@ class SimClientRunner internal constructor(
             }} row(s)",
         )
         lookups.ambiguousCatalogs.forEach { (key, count) -> println("  $key = $count") }
+        if (config.offerDiff) OfferDiffReport.printSummary(OfferDiffReport.totals(rows.map { it.stats }))
     }
+
+    private fun offerDiffSnapshot(harness: MatchFlowHarness?): OfferDiffDiagnostics.Snapshot? =
+        runCatching {
+            harness
+                ?.bridge
+                ?.takeIf { it.engineSettings.dev.offerDiff }
+                ?.offerDiffDiagnostics
+                ?.snapshot()
+        }.getOrNull()
 
     private fun automaticAnswerTotals(rows: List<SimClientRowResult>): Map<String, Int> =
         rows
@@ -436,6 +455,9 @@ class SimClientRunner internal constructor(
                 append("\"unnamedDefaultAnswers\":${unnamedDefaultAnswersToJson(unnamedDefaultTotals(result.rows))},")
                 append("\"automaticAnswersByRule\":${mapToJson(automaticAnswerTotals(result.rows))},")
                 append("\"abilityLookups\":${AbilityLookupTotals.of(result.rows.map { it.stats }).toJson()},")
+                if (config.offerDiff) {
+                    append("\"offerDiff\":${OfferDiffReport.toJson(OfferDiffReport.totals(result.rows.map { it.stats }))},")
+                }
                 append("\"outDir\":${simJsonString(config.outDir.path)}")
                 append('}')
             }

@@ -113,6 +113,7 @@ abstract class SessionTest(
         forgeCatalog: Boolean = javaClass.getAnnotation(FixturePinned::class.java) == null,
         timeout: Duration? = null,
         costChoicePresentation: CostChoicePresentation = CostChoicePresentation.Native,
+        offerDiff: Boolean = false,
         block: suspend MatchFlowHarness.() -> Unit,
     ) {
         require(puzzle == null || puzzleFile == null) {
@@ -137,6 +138,8 @@ abstract class SessionTest(
                     fullControl = fullControl,
                     responseMode = responseMode,
                     cardRepositoryOverride = if (forgeCatalog) ForgeCardRepository.open() else null,
+                    engineSettings =
+                        MatchFlowHarness.headlessEngineSettings().let { it.copy(dev = it.dev.copy(offerDiff = offerDiff)) },
                 )
             try {
                 harness.connect(puzzleText = puzzleText, puzzleResource = puzzleFile, aiScript = aiScript)

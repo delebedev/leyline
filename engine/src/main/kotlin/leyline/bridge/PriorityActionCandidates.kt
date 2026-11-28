@@ -20,6 +20,9 @@ class PriorityActionCandidates private constructor(
         val mdfcLandAbility: LandAbility?,
     )
 
+    /** Every card's candidates, in traversal order. */
+    internal val all: Collection<CardCandidates> get() = byCardId.values
+
     fun forCard(card: Card): CardCandidates =
         byCardId[card.id]
             ?: CardCandidates(card, emptyList(), emptyList(), emptyList(), null, null)

@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import leyline.bridge.OfferDiffDiagnostics
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 const val STATS_SCHEMA_VERSION = 4
@@ -79,6 +80,8 @@ data class GameStats(
     val abilityRowMismatches: Map<String, Int> = emptyMap(),
     /** Offered actions the client could not tell apart from an earlier offer, keyed by action shape. */
     val ambiguousActionCatalogs: Map<String, Int> = emptyMap(),
+    /** Differences between published priority windows and Forge's ability enumeration; null when the diff is off. */
+    val offerDiff: OfferDiffDiagnostics.Snapshot? = null,
 )
 
 data class PromptRouteFinding(

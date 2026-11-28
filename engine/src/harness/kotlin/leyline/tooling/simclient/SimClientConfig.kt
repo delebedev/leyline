@@ -27,6 +27,8 @@ data class SimClientConfig(
     val excludeCardsFile: File? = defaultQuarantineFile(),
     val excludePolicy: SimClientExcludePolicy = SimClientExcludePolicy.ReplaceBasic,
     val verbose: Boolean = false,
+    /** Compare every published priority window with Forge's ability enumeration. */
+    val offerDiff: Boolean = true,
 ) {
     init {
         require(maxTurns > 0) { "--max-turns must be > 0" }
@@ -104,6 +106,7 @@ data class SimClientConfig(
                         "--no-exclude-cards-file" -> config.copy(excludeCardsFile = null)
                         "--exclude-policy" -> config.copy(excludePolicy = SimClientExcludePolicy.parse(value()))
                         "--verbose" -> config.copy(verbose = true)
+                        "--no-offer-diff" -> config.copy(offerDiff = false)
                         "--help", "-h" -> {
                             printUsage()
                             return null
@@ -148,6 +151,7 @@ data class SimClientConfig(
                   --no-exclude-cards-file       Ignore the default quarantine file.
                   --exclude-policy <policy>     replace-basic|skip-deck.
                   --verbose                     Keep detailed console logging; default stdout is compact.
+                  --no-offer-diff               Skip comparing priority windows with Forge's ability enumeration.
                 """.trimIndent(),
             )
         }
@@ -232,13 +236,22 @@ data class SimClientRunResult(
 
 /**
  * A strict run also fails on any unnamed default answer, on any ability row that disagrees with its Forge
- * ability, and on any action catalog that offered indistinguishable actions, whatever the row's failure class.
+ * ability, on any action catalog that offered indistinguishable actions, and on any unnamed offer difference,
+ * whatever the row's failure class.
  */
 fun isStrictFailure(stats: GameStats): Boolean =
     failureClass(stats) in strictFailureClasses ||
         stats.unnamedDefaultAnswers.isNotEmpty() ||
         stats.abilityRowMismatches.isNotEmpty() ||
-        stats.ambiguousActionCatalogs.isNotEmpty()
+        stats.ambiguousActionCatalogs.isNotEmpty() ||
+        stats.offerDiff
+            ?.unnamed
+            .orEmpty()
+            .isNotEmpty() ||
+        stats.offerDiff
+            ?.failures
+            .orEmpty()
+            .isNotEmpty()
 
 private val strictFailureClasses = setOf("exception", "wall-timeout", "validation", "log-error")
 

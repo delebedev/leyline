@@ -112,6 +112,12 @@ data class DevSettings(
     /** Endpoint for local prompt handling. */
     @SerialName("copilot_bridge_url")
     val copilotBridgeUrl: String = "http://127.0.0.1:8092",
+    /**
+     * Compare each published priority window with Forge's ability enumeration
+     * and record the differences in `GameBridge.offerDiffDiagnostics`.
+     */
+    @SerialName("offer_diff")
+    val offerDiff: Boolean = false,
 ) {
     fun validate() {
         require(copilotBridgeUrl.isNotBlank()) { "engine.dev.copilot_bridge_url must not be blank" }

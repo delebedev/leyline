@@ -283,6 +283,10 @@ class SimClientDriver(
             ambiguousActionCatalogs =
                 harness.bridge.abilityIdentities.ledger
                     .ambiguousCatalogs(),
+            offerDiff =
+                harness.bridge.offerDiffDiagnostics
+                    .snapshot()
+                    .takeIf { harness.bridge.engineSettings.dev.offerDiff },
         )
     }
 
