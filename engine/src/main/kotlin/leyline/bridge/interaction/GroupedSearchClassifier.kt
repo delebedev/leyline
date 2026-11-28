@@ -5,7 +5,7 @@ import forge.game.card.Card
 import forge.game.keyword.Keyword
 import forge.game.spellability.SpellAbility
 
-/** Recognizes the one protocol-grounded multi-quality library-search shape. */
+/** Recognizes the one protocol-grounded multi-quality library-search shape; anything else stays a flat search. */
 object GroupedSearchClassifier {
     data class Shape(
         val origin: String?,
@@ -44,14 +44,12 @@ object GroupedSearchClassifier {
         if (shape.changeNum != "1") return null
         if (shape.changeType?.split(',')?.map(String::trim) != listOf("Instant", "Card.hasKeywordFlash")) return null
 
+        // The grounded request carries two non-empty, disjoint groups. A library that holds only one quality,
+        // or a card that qualifies for both, stays a flat search so the player still gets a legal choice.
+        if (candidates.any { it.isInstant && it.hasFlash }) return null
         val instant = candidates.indices.filter { candidates[it].isInstant }
-        check(candidates.none { it.isInstant && it.hasFlash }) {
-            "Grouped search candidate belongs to multiple groups"
-        }
         val flash = candidates.indices.filter { candidates[it].hasFlash }
-        check(instant.isNotEmpty() && flash.isNotEmpty() && (instant + flash).toSet() == candidates.indices.toSet()) {
-            "Grouped search candidates do not form the grounded partitions"
-        }
+        if (instant.isEmpty() || flash.isEmpty() || instant.size + flash.size != candidates.size) return null
         return listOf(instant, flash)
     }
 

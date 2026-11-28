@@ -171,4 +171,26 @@ class SearchPromptSessionTest :
 
             assertGsIdChain(allMessages, context = "search response playback drain")
         }
+
+        session(
+            "Mystical Teachings with no flash card in library offers a flat search",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Mystical Teachings
+                humanbattlefield=Island;Island;Island;Island
+                humanlibrary=Lightning Bolt;Brainstorm;Forest
+                ailibrary=Mountain;Mountain;Mountain
+            """,
+        ) {
+            val bolt = human.library.iid("Lightning Bolt")
+            val search = castSpellUntilSearchReq("Mystical Teachings")
+            allMessages.none { it.hasSearchFromGroupsReq() }.shouldBeTrue()
+            search.itemsSoughtList.toSet() shouldBe setOf(bolt, human.library.iid("Brainstorm"))
+            respondToSearch(listOf(bolt))
+            passUntilResolved()
+            human.hand.card("Lightning Bolt").name shouldBe "Lightning Bolt"
+        }
     })
