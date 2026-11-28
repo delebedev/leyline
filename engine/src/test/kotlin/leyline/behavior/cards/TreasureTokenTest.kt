@@ -103,7 +103,7 @@ class TreasureTokenTest :
                             .any { it.id == offer.action.uniqueAbilityId && it.grpId == offer.action.abilityGrpId }
                             .shouldBeTrue()
                     }
-                    leyline.bridge.coord.hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                    bridge.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
                 }
                 val selected = grants[grantedChoice].action
                 val published =

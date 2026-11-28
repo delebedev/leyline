@@ -8,7 +8,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import leyline.bridge.coord.hasAmbiguousActionCatalog
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
@@ -64,7 +63,7 @@ class ActivatedActionEmitterTest :
 
             assertSoftly {
                 offers.size shouldBe 2
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
                 printed.abilityGrpId shouldBe 1005
                 granted.abilityGrpId shouldNotBe 0
                 granted.abilityGrpId shouldNotBe printed.abilityGrpId

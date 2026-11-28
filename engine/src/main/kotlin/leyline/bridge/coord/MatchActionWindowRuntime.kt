@@ -565,7 +565,7 @@ internal class MatchActionWindowRuntime(
                     createRuntimeActionWindow(
                         seatId,
                         pending,
-                        withDistinguishableOffers(actionPrepared),
+                        actionPrepared,
                         messages,
                         promptGsId,
                         nextToken = { nextActionToken++ },
@@ -609,15 +609,6 @@ internal class MatchActionWindowRuntime(
             beforePublished?.invoke()
             created.status = ActionWindowStatus.Published
         }
-    }
-
-    /** Offers the client cannot tell apart keep the first; the ledger counts each such action. */
-    private fun withDistinguishableOffers(prepared: BundleBuilder.ActionWindowPrepared): BundleBuilder.ActionWindowPrepared {
-        val catalog = disambiguateActionCatalog(prepared.bundle.actionOffers)
-        if (catalog.ambiguous.isEmpty()) return prepared
-        owner.bridge.abilityIdentities.ledger
-            .recordAmbiguousCatalog(catalog.ambiguous)
-        return prepared.withOffers(catalog.offers)
     }
 
     private fun initialActionIntent(

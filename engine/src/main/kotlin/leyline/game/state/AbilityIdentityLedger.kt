@@ -1,10 +1,11 @@
 package leyline.game.state
 
 import forge.game.spellability.SpellAbility
+import leyline.bridge.handoff.IndistinguishableOffer
+import leyline.bridge.handoff.forgeAbility
 import leyline.bridge.types.AbilityIdentitySource
 import leyline.bridge.types.AbilityLookup
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.Action
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -95,14 +96,28 @@ class AbilityIdentityLedger(
         }
     }
 
-    /** Count an action catalog that offered equal actions for different Forge abilities, one entry per such action. */
-    fun recordAmbiguousCatalog(actions: List<Action>) {
-        for (action in actions) {
+    /**
+     * Count each offer dropped because its action equals an earlier offer's for a different Forge ability. The key
+     * names the action, the dropped command and its ability. A pair that differs in definition or cost is logged at
+     * error, because the client then cannot choose the cost or ability it would get from the dropped offer.
+     */
+    fun recordIndistinguishableOffers(dropped: List<IndistinguishableOffer>) {
+        for ((kept, offer) in dropped) {
+            val action = offer.action
+            val ability = offer.forgeAbility()
             val key =
                 "${action.actionType.name} grpId=${action.grpId} abilityGrpId=${action.abilityGrpId} " +
-                    "uniqueAbilityId=${action.uniqueAbilityId}"
-            if (increment(ambiguousCatalogs, key) == 1) {
-                log.warn("Action catalog offered indistinguishable actions; keeping the first offer: {}", key)
+                    "uniqueAbilityId=${action.uniqueAbilityId} dropped=${offer.command::class.simpleName} " +
+                    "\"${ability?.description.orEmpty()}\""
+            if (increment(ambiguousCatalogs, key) > 1) continue
+            val keptAbility = kept.forgeAbility()
+            val differs =
+                keptAbility?.definitionId != ability?.definitionId ||
+                    keptAbility?.payCosts?.toSimpleString() != ability?.payCosts?.toSimpleString()
+            if (differs) {
+                log.error("Action catalog dropped an indistinguishable offer with a different definition or cost: {}", key)
+            } else {
+                log.warn("Action catalog dropped an indistinguishable offer; keeping the first: {}", key)
             }
         }
     }

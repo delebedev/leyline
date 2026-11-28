@@ -690,9 +690,10 @@ grouped by family, then by entity.
   - Contract: an offered action is identified by its type and the identities
     that type uses, so the response names exactly one offer.
   - Leyline: when two offers would carry equal actions, only the first is
-    offered. The window opens with the remaining offers and the ability
+    offered. The dropped action is absent from the request, the state's
+    embedded actions and the executable offers alike, and the ability
     identity ledger counts the dropped shape.
-  - Owner: `MatchActionWindowRuntime`
+  - Owner: `ActionMapper`
 
 #### AssignDamageReq
 

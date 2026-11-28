@@ -4,6 +4,7 @@ import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.DeferredCastCostPlan
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.executionIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.bundle.BundleBuilder
@@ -55,16 +56,6 @@ internal sealed interface ActionWindowStatus {
 }
 
 internal enum class ActionClaimKind { Immediate, Deferred }
-
-private data class ActionExecutionIdentity(
-    val command: PlayerAction,
-    val stackAbilityGrpId: Int?,
-    val forgeAbilityId: Int?,
-    val spellGrpId: Int?,
-)
-
-private fun GameActionBridge.ActionOffer.executionIdentity() =
-    ActionExecutionIdentity(command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
 
 internal fun GameActionBridge.ActionOffer.sourceCardId() =
     when (val value = command) {
@@ -207,32 +198,4 @@ internal fun selectedManaColor(action: Action): Byte? {
         .distinct()
         .singleOrNull()
         ?.let(WubrgColorMapping::magicMaskForManaColor)
-}
-
-internal fun hasAmbiguousActionCatalog(offers: List<GameActionBridge.ActionOffer>): Boolean =
-    disambiguateActionCatalog(offers).ambiguous.isNotEmpty()
-
-/**
- * The catalog with every offer the client could not tell apart from an earlier one removed.
- *
- * Two offers are indistinguishable when their actions are equal but they execute different Forge abilities: the
- * client's response matches both. The first such offer stays, so a response executes the ability offered first.
- */
-internal data class DisambiguatedActionCatalog(
-    val offers: List<GameActionBridge.ActionOffer>,
-    /** One action per group of indistinguishable offers. */
-    val ambiguous: List<Action>,
-)
-
-internal fun disambiguateActionCatalog(offers: List<GameActionBridge.ActionOffer>): DisambiguatedActionCatalog {
-    val ambiguous =
-        offers
-            .groupBy { it.action }
-            .filterValues { variants -> variants.map { it.executionIdentity() }.distinct().size > 1 }
-    if (ambiguous.isEmpty()) return DisambiguatedActionCatalog(offers, emptyList())
-    val retained =
-        offers.filter { offer ->
-            offer.action !in ambiguous || offer.executionIdentity() == ambiguous.getValue(offer.action).first().executionIdentity()
-        }
-    return DisambiguatedActionCatalog(retained, ambiguous.keys.toList())
 }

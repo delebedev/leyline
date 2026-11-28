@@ -16,10 +16,12 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.IndistinguishableOffer
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.SynchronizationPresentation
+import leyline.bridge.handoff.disambiguateActionCatalog
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
@@ -181,9 +183,9 @@ class MatchCutCoordinatorTest :
 
             assertSoftly {
                 catalog.offers shouldBe listOf(pass, distinct, pass)
-                catalog.ambiguous shouldBe listOf(wire)
+                catalog.dropped shouldBe listOf(IndistinguishableOffer(pass, endTurn))
                 disambiguateActionCatalog(listOf(firstSpell, secondSpell)).offers shouldBe listOf(firstSpell)
-                disambiguateActionCatalog(listOf(pass, distinct)).ambiguous shouldBe emptyList()
+                disambiguateActionCatalog(listOf(pass, distinct)).dropped shouldBe emptyList()
             }
         }
 

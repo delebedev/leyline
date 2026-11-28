@@ -65,9 +65,14 @@ abstract class BoardTest(
             TestCardRegistry.ensureRegistered()
         }
         afterEach {
-            bridge?.shutdown()
+            val finished = bridge
             bridge = null
             testCounter = LogicalSequencePlanner()
+            try {
+                finished?.checkNoIndistinguishableOffers()
+            } finally {
+                finished?.shutdown()
+            }
         }
         body()
     }

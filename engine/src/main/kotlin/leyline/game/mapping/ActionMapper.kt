@@ -16,6 +16,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.disambiguateActionCatalog
 import leyline.bridge.isSuspendHandAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
@@ -225,7 +226,27 @@ object ActionMapper {
                 }
             if (ability != null && ability in unsure) bridge.affordabilityDiagnostics.recordOfferedWhileUnsure(ability)
         }
-        return projection
+        return distinguishable(projection, bridge)
+    }
+
+    /**
+     * Drops each offer the client cannot tell apart from an earlier one, from both the offers and the actions, so
+     * the request, the embedded state actions and the executable offers stay equal. The ledger counts every drop.
+     */
+    private fun distinguishable(
+        projection: ActionProjection,
+        bridge: GameBridge,
+    ): ActionProjection {
+        val catalog = disambiguateActionCatalog(projection.offers)
+        if (catalog.dropped.isEmpty()) return projection
+        bridge.abilityIdentities.ledger.recordIndistinguishableOffers(catalog.dropped)
+        val actions =
+            projection.actions
+                .toBuilder()
+                .clearActions()
+                .addAllActions(catalog.offers.map { it.action })
+                .build()
+        return ActionProjection(actions, catalog.offers)
     }
 
     @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
