@@ -16,6 +16,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
+import leyline.config.CostChoicePresentation
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
@@ -38,6 +39,8 @@ class InteractivePromptBridge(
     private val timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
     private val prioritySignal: PrioritySignal? = null,
     private val strict: Boolean = DevCheck.strict,
+    /** The match's label policy; [CostChoicePresentation.ForgeText] hosts render Forge-text choice labels. */
+    val choicePresentation: CostChoicePresentation = CostChoicePresentation.Native,
 ) {
     /**
      * Forge-id → leyline iid lookup. Set by [leyline.game.state.GameBridge]

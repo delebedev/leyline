@@ -1577,12 +1577,12 @@ Shapes Leyline emits that no protocol page defines. They are normative for
 Leyline's heads only. A reviewer checks a change against the description here,
 not against a protocol page.
 
-### Forge-text cost labels
+### Forge-text choice labels
 
-A host can choose how cast-time cost choices are labelled for the whole
-match. The default, `Native`, uses the client's prompt IDs. `ForgeText`, used
-by the Web head, adds a `Cost` prompt parameter of type `NonLocalizedString`
-carrying Forge's description of the cost:
+A host can choose how cost and type choices are labelled for the whole
+match. The default, `Native`, uses the client's prompt IDs and enum lists.
+`ForgeText`, used by the Web head, adds a `Cost` prompt parameter of type
+`NonLocalizedString` carrying Forge's description of the cost:
 
 - on each optional-cost row of a `CastingTimeOptionsReq`, such as kicker or
   offspring, as the row's own `prompt`;
@@ -1593,7 +1593,18 @@ carrying Forge's description of the cost:
 The text is a label. It is not a recomputed total cost, and the row identity,
 `ctoId` and response handling are the same in both modes.
 
-- Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`
+A type choice, such as choosing a creature type, is a restricted
+`StaticList_SubTypes` or `StaticList_CardTypes` list when every offered type
+has an enum value. When at least one does not, such as `Tribble`, the two
+modes differ:
+
+- `ForgeText` sends every offered type as a [named label
+  choice](#named-label-choice), one `Choice` parameter per type, labelled by
+  Forge's type name;
+- `Native` keeps the restricted enum list and leaves out the types without an
+  enum value, which the player cannot choose.
+
+- Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`, `StaticChoiceCoordinator.chooseSomeType`
 
 ### Vote
 

@@ -15,6 +15,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.interaction.ConfirmActionPlan
 import leyline.bridge.types.StaticChoiceIds
+import leyline.config.CostChoicePresentation
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
@@ -349,6 +350,11 @@ class StaticChoiceCoordinator(
         return allocation
     }
 
+    /**
+     * Offers Forge's [validTypes] as an enum-list choice when every type has a protocol
+     * id. Otherwise a [CostChoicePresentation.ForgeText] host gets every type as a named
+     * label choice, and a [CostChoicePresentation.Native] host gets only the types with an id.
+     */
     fun chooseSomeType(
         kindOfType: String,
         sa: SpellAbility?,
@@ -356,6 +362,9 @@ class StaticChoiceCoordinator(
         isOptional: Boolean,
     ): String? {
         val isCardType = kindOfType == "Card"
+        val ordered = if (isCardType) validTypes.toList() else validTypes.sorted()
+        val typeIds = ordered.map { type -> if (isCardType) StaticChoiceIds.cardTypeIdFor(type) else StaticChoiceIds.subtypeIdFor(type) }
+        val labelled = bridge.choicePresentation == CostChoicePresentation.ForgeText && typeIds.any { it == null }
 
         fun request(choices: List<Pair<String, Int>>) =
             PromptRequest(
@@ -367,19 +376,28 @@ class StaticChoiceCoordinator(
                 defaultIndex = 0,
                 route =
                     PromptRouteResolver.resolve(
-                        if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice,
+                        when {
+                            labelled -> PromptSemantic.NamedChoice
+                            isCardType -> PromptSemantic.StaticCardTypeChoice
+                            else -> PromptSemantic.StaticSubtypeChoice
+                        },
                     ),
                 sourceEntityId = sourceEntityId(sa),
-                staticList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes,
+                staticList =
+                    when {
+                        labelled -> null
+                        isCardType -> StaticList.CardTypes
+                        else -> StaticList.SubTypes
+                    },
                 staticOptionIds = choices.map { it.second },
             )
 
-        // Only values with a protocol mapping can be shown; the rest cannot be chosen.
+        // An enum-list choice can show only the types with a protocol id.
         val choices =
-            if (isCardType) {
-                validTypes.mapNotNull { type -> StaticChoiceIds.cardTypeIdFor(type)?.let { type to it } }
+            if (labelled) {
+                ordered.mapIndexed { index, type -> type to index + 1 }
             } else {
-                validTypes.sorted().mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { type to it } }
+                ordered.zip(typeIds).mapNotNull { (type, id) -> id?.let { type to it } }
             }
         if (choices.size < 2 && !(isOptional && choices.size == 1)) {
             val answer = if (isOptional) null else choices.singleOrNull()?.first ?: validTypes.firstOrNull()

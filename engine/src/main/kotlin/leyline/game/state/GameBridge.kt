@@ -380,7 +380,11 @@ class GameBridge(
                 windowRuntime = cutCoordinator.actionWindowRuntime(seatId),
             )
         promptBridges[seatId.value] =
-            InteractivePromptBridge(timeoutMs = promptFailsafeMs, prioritySignal = prioritySignal).also {
+            InteractivePromptBridge(
+                timeoutMs = promptFailsafeMs,
+                prioritySignal = prioritySignal,
+                choicePresentation = engineSettings.costChoicePresentation,
+            ).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId

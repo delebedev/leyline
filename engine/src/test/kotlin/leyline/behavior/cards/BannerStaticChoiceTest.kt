@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.StaticChoiceIds
+import leyline.config.CostChoicePresentation
 import leyline.game.codes.DetailKeys
 import leyline.testkit.*
 import leyline.testkit.SessionTest
@@ -12,6 +13,7 @@ import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.lastGsmMatching
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
@@ -70,6 +72,28 @@ class BannerStaticChoiceTest :
                 ids shouldContain StaticChoiceIds.subtypeIdFor("Human")!!
                 ids shouldContain StaticChoiceIds.subtypeIdFor("Kithkin")!!
             }
+        }
+
+        session(
+            "Patchwork Banner offers creature types without an enum value as named labels under Forge-text labels",
+            puzzleFile = "data/puzzles/patchwork-banner-static-choice.pzl",
+            costChoicePresentation = CostChoicePresentation.ForgeText,
+        ) {
+            val req = castSpellUntilSelectNReq("Patchwork Banner")
+            val labels = req.prompt.parametersList.map { it.stringValue }
+            val tribble = labels.indexOf("Tribble") + 1
+
+            assertSoftly {
+                req.listType shouldBe SelectionListType.Dynamic
+                req.idType shouldBe IdType.PromptParameterIndex
+                req.staticList shouldBe StaticList.None_a56d
+                labels shouldContain "Goblin"
+                labels shouldContain "Tribble"
+                req.idsList shouldBe labels.indices.map { it + 1 }
+            }
+            respondToSelectN(listOf(tribble))
+            passUntilResolved()
+            human.battlefield.card("Patchwork Banner").chosenType shouldBe "Tribble"
         }
 
         // protocol: ChoiceResult.transient, ChoiceResult.domain-static-list, LinkInfo.type-shape
