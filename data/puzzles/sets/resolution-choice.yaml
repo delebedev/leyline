@@ -1,5 +1,5 @@
 name: resolution-choice
-description: A resolving attack trigger pauses for sacrifices before combat continues.
+description: Resolving effects pause for the player's card choices, such as sacrifices, revealed cards and spells to cast, then continue.
 scenarios:
   - id: annihilator-sacrifice
     puzzle: resolution-annihilator-choice

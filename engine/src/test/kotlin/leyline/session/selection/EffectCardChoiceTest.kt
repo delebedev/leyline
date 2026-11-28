@@ -250,6 +250,7 @@ class EffectCardChoiceTest :
                     humanlibrary=Llanowar Elves;Grizzly Bears;Forest;Forest;Island;Island
                     ailibrary=Forest;Forest;Forest
                 """,
+                fullControl = true,
             ) {
                 activateAbility("Svella, Ice Shaper", 1)
                 passUntil { allMessages.any { it.hasSelectNReq() } }
@@ -292,6 +293,7 @@ class EffectCardChoiceTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Divination;Opt;Forest;Forest;Forest;Forest;Forest;Forest;Forest
             """,
+            fullControl = true,
         ) {
             castSpellUntilSelectTargetsReq("Talent of the Telepath")
             selectTargets(listOf(2))
@@ -303,7 +305,7 @@ class EffectCardChoiceTest :
             respondToSelectN(listOf(offered.getValue("Divination")))
             passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
             respondToOptionalAction(true)
-            passUntilResolved()
+            passUntil { game().stack.isEmpty } shouldBe true
             assertSoftly {
                 "Divination" should beInZoneOf(ZoneType.Graveyard, ai)
                 human.getZone(ZoneType.Hand).cards.size shouldBe 2

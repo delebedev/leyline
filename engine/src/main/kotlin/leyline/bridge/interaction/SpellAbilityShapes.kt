@@ -25,15 +25,23 @@ object SpellAbilityShapes {
     }
 
     /**
-     * A play effect whose candidates are cards an earlier step of the same ability identified:
-     * the cards it defines, or its valid cards narrowed to what that step remembered or imprinted
-     * (Svella, Ice Shaper's top four). A play effect filtering a whole zone by type is not one.
+     * A play effect whose candidates are cards an earlier step of the same ability identified
+     * (Svella, Ice Shaper's top four): cards it defines as remembered, imprinted or chosen, or
+     * valid cards where every alternative is narrowed to remembered or imprinted cards.
+     * Any other selector, such as a whole-zone filter or the unseen top of a library, is not one.
      */
-    fun playsCardsItIdentified(sa: SpellAbility?): Boolean =
-        sa?.api == ApiType.Play &&
-            (sa.hasParam("Defined") || sa.getParam("Valid")?.let(IDENTIFIED_CARDS::containsMatchIn) == true)
+    fun playsCardsItIdentified(sa: SpellAbility?): Boolean {
+        if (sa?.api != ApiType.Play) return false
+        val defined = sa.getParam("Defined")
+        if (defined != null) return defined.substringBefore('.') in IDENTIFIED_DEFINED
+        val valid = sa.getParam("Valid") ?: return false
+        return valid.split(',').all(IDENTIFIED_VALID::containsMatchIn)
+    }
 
-    private val IDENTIFIED_CARDS = Regex("""\bIs(Remembered|Imprinted)\b""")
+    private val IDENTIFIED_DEFINED =
+        setOf("Remembered", "RememberedLKI", "DelayTriggerRemembered", "Imprinted", "ChosenCard")
+
+    private val IDENTIFIED_VALID = Regex("""\bIs(Remembered|Imprinted)\b""")
 
     fun usesCostOnlyCastingOption(sa: SpellAbility?): Boolean =
         (sa?.alternativeCost ?: sa?.rootAbility?.alternativeCost) in

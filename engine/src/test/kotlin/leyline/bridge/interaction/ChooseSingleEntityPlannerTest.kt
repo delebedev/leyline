@@ -127,13 +127,18 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
-        test("Play identifies its library cards through Defined or remembered and imprinted filters only") {
+        test("Play identifies its library cards only through identified Defined cards or fully narrowed Valid filters") {
             fun shape(params: Map<String, String>) =
                 planFor(playSa(params), isOptional = true, candidateRefs = libraryRefs).resolutionRouteInput?.abilityShape
 
             assertSoftly {
                 shape(mapOf("Defined" to "Imprinted")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Defined" to "Remembered.nonLand")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Defined" to "TopOfLibrary")) shouldBe ResolutionAbilityShape.Other
+                shape(mapOf("Defined" to "ValidLibrary Card.YouOwn")) shouldBe ResolutionAbilityShape.Other
                 shape(mapOf("Valid" to "Card.IsImprinted")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Valid" to "Instant.IsRemembered,Sorcery.IsRemembered")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Valid" to "Card.IsRemembered+Instant,Card.Sorcery")) shouldBe ResolutionAbilityShape.Other
                 shape(mapOf("Valid" to "Instant,Sorcery")) shouldBe ResolutionAbilityShape.Other
                 planFor(playSa(mapOf("Valid" to "Instant,Sorcery")), isOptional = true, candidateRefs = libraryRefs)
                     .resolutionRouteInput
