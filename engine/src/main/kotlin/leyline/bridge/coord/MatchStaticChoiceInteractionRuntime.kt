@@ -52,6 +52,9 @@ internal class MatchStaticChoiceInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
+    override fun shownOptions(request: PromptRequest): List<Int> =
+        owner.feed(owner.humanSeat).builder.staticChoiceShownOptions(StaticChoiceWindowCapture.initial(request))
+
     fun current(): PublishedStaticChoiceInteraction? = slot.current()?.published
 
     private fun admitLocked(

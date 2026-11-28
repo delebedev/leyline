@@ -120,6 +120,8 @@ class InteractivePromptBridgeTest :
                 PromptRuntimeBindings(
                     staticChoice =
                         object : StaticChoiceInteractionRuntime {
+                            override fun shownOptions(request: PromptRequest): List<Int> = request.options.indices.toList()
+
                             override fun awaitSelection(
                                 request: PromptRequest,
                                 timeoutMs: Long?,

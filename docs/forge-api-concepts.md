@@ -101,11 +101,12 @@ replacement ability runs. Acceptance continues to any replacement-mode choice.
 Commander return and optional battlefield-copy replacements retain their dedicated
 source selection and presentation.
 
-`chooseSomeType` retains the offered card-type strings and order in an explicit
-CardTypes subset. If any offered card type has no enum mapping, the whole choice
-keeps its default policy instead of publishing a partial subset. Optional
-unsupported card-type choices return no value. Creature and land subtype
-choices retain the SubTypes domain.
+`chooseSomeType` offers Forge's types in order, card types as given and
+subtypes sorted, each with its CardTypes or SubTypes enum value when it has
+one. Projection decides which types the request shows; see
+[Forge-text choice labels](protocol/implementation.md#forge-text-choice-labels).
+A choice that shows fewer than two types is answered without a prompt, and a
+timeout falls back to the first type shown.
 
 Attacker alternatives are committed with the combat declaration. Exert and
 Enlist callbacks consume their own selections on the engine thread before

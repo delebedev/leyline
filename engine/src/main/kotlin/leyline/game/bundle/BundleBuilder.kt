@@ -1895,6 +1895,11 @@ class BundleBuilder(
     }
 
     /** Prepare, but do not install, one coordinator-owned static enum SelectN window. */
+
+    /** Options of [window] its request lets the player choose, under the host's label policy. */
+    internal fun staticChoiceShownOptions(window: leyline.bridge.handoff.StaticChoiceWindowValue): List<Int> =
+        staticChoiceWindows.shownOptions(window, bridge.engineSettings.costChoicePresentation)
+
     internal fun prepareStaticChoiceWindow(
         game: Game,
         counter: LogicalSequencePlanner,

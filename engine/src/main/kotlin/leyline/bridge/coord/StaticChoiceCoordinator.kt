@@ -351,7 +351,8 @@ class StaticChoiceCoordinator(
 
     /**
      * Offers every type in Forge's [validTypes], each with its enum value when it has one.
-     * Projection decides how a type without an enum value is shown.
+     * Projection decides which types the request can show; the choice is answered without
+     * a prompt when it shows fewer than two, and falls back to the first type it shows.
      */
     fun chooseSomeType(
         kindOfType: String,
@@ -364,35 +365,36 @@ class StaticChoiceCoordinator(
         val choices =
             types.map { type -> type to if (isCardType) StaticChoiceIds.cardTypeIdFor(type) else StaticChoiceIds.subtypeIdFor(type) }
 
-        fun request(offered: List<Pair<String, Int?>>) =
+        fun request(defaultIndex: Int = 0) =
             PromptRequest(
                 promptType = "choose_type",
                 message = "Choose a ${kindOfType.lowercase()} type",
-                options = offered.map { it.first },
+                options = choices.map { it.first },
                 min = if (isOptional) 0 else 1,
                 max = 1,
-                defaultIndex = 0,
+                defaultIndex = defaultIndex,
                 route =
                     PromptRouteResolver.resolve(
                         if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice,
                     ),
                 sourceEntityId = sourceEntityId(sa),
                 staticList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes,
-                staticOptionIds = offered.map { it.second },
+                staticOptionIds = choices.map { it.second },
             )
 
-        if (choices.size < 2 && !(isOptional && choices.size == 1)) {
-            val answer = if (isOptional) null else choices.singleOrNull()?.first
+        val shown = if (choices.isEmpty()) emptyList() else bridge.shownStaticChoiceOptions(request())
+        if (shown.size < 2 && !(isOptional && shown.size == 1)) {
+            val answer = if (isOptional) null else (shown.firstOrNull() ?: 0).let { choices.getOrNull(it)?.first }
             bridge.recordAutomaticAnswer(
-                request(choices),
+                request(),
                 AutomaticAnswerRule.NoChoiceAmongShownOptions,
                 listOfNotNull(answer?.let { choices.indexOfFirst { pair -> pair.first == it } }),
             )
             return answer
         }
 
-        val idx = requestChoice(request(choices)).firstOrNull()
-        return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first
+        val idx = requestChoice(request(defaultIndex = shown.first())).firstOrNull()
+        return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices[shown.first()].first
     }
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")

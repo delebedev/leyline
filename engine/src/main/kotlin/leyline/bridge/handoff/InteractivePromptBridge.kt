@@ -611,6 +611,19 @@ class InteractivePromptBridge(
     }
 
     /** Route one static enum SelectN request through its frozen protocol values. */
+
+    /**
+     * Indices of [request]'s options a published static choice would let the player choose.
+     * Without a published window, only options with an enum value count.
+     */
+    fun shownStaticChoiceOptions(request: PromptRequest): List<Int> {
+        val runtime = runtimeBindings.staticChoice
+        if (runtime == null || NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return request.staticOptionIds.indices.filter { request.staticOptionIds[it] != null }
+        }
+        return runtime.shownOptions(request)
+    }
+
     fun requestStaticChoice(request: PromptRequest): List<Int> {
         check(request.route is ResolvedPromptRoute.StaticChoice) { "StaticChoice route required" }
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {

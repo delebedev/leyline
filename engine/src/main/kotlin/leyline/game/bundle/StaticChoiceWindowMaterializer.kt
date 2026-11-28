@@ -58,22 +58,25 @@ internal class StaticChoiceWindowMaterializer {
     }
 
     /**
-     * A type choice with a type that has no enum value is offered by label: always under
-     * [CostChoicePresentation.ForgeText], and under [CostChoicePresentation.Native] only when
-     * no offered type has an enum value. Otherwise the enum list offers the types that have one.
+     * A type choice with a type that has no enum value is offered by label under
+     * [CostChoicePresentation.ForgeText]. Otherwise the enum list offers only the types
+     * that have one.
      */
     private fun offeredByLabel(
         window: StaticChoiceWindowValue,
         presentation: CostChoicePresentation,
-    ): Boolean {
-        val unlisted = window.options.count { it.protocolValue == null }
-        return when {
-            window.kind == StaticChoiceKind.Named -> true
-            unlisted == 0 -> false
-            presentation == CostChoicePresentation.ForgeText -> true
-            else -> unlisted == window.options.size
-        }
-    }
+    ): Boolean =
+        window.kind == StaticChoiceKind.Named ||
+            (presentation == CostChoicePresentation.ForgeText && window.options.any { it.protocolValue == null })
+
+    /** Options of [window] the request built for [presentation] lets the player choose. */
+    fun shownOptions(
+        window: StaticChoiceWindowValue,
+        presentation: CostChoicePresentation,
+    ): List<Int> =
+        window.options
+            .filter { offeredByLabel(window, presentation) || it.protocolValue != null }
+            .map { it.originalOptionIndex }
 
     private fun buildRequest(
         window: StaticChoiceWindowValue,

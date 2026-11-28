@@ -51,8 +51,6 @@ class StaticChoiceCoordinatorTest :
                 Case("Card", listOf("land", "Creature"), StaticList.CardTypes, listOf(5, 2)),
                 Case("Card", listOf("Stickers", "Land", "Creature"), StaticList.CardTypes, listOf(5, 2)),
                 Case("Card", listOf("Land"), StaticList.CardTypes, listOf(5), optional = true),
-                // No offered type has an enum value, so even the native head offers them by label.
-                Case("Card", listOf("Goblin", "Human"), StaticList.None_a56d, listOf(1, 2)),
                 Case("Creature", listOf("Goblin", "Human"), StaticList.SubTypes, listOf(34, 39)),
                 Case(
                     "Basic Land",
@@ -268,7 +266,62 @@ class StaticChoiceCoordinatorTest :
             }
         }
 
-        test("a type choice with one offered type or none answers without a prompt under its named rule") {
+        test("on the engine thread a native type choice that shows one enum value answers it without a prompt") {
+            val board = startPuzzleAtMain1(puzzle)
+            val controller = board.human.controller as PlayerController
+            val sa =
+                board.human.battlefield
+                    .card("Island")
+                    .spellAbilities
+                    .first()
+            val bridge = board.bridge.promptBridge(SeatId(1))
+            val before = bridge.history.size
+            val result = AtomicReference<String?>()
+            val failure = AtomicReference<Throwable?>()
+            val worker =
+                Thread {
+                    try {
+                        bridge.setDiagnosticContext(board.game, Thread.currentThread())
+                        result.set(controller.chooseSomeType("Card", sa, listOf("Stickers", "Land"), false))
+                    } catch (error: Throwable) {
+                        failure.set(error)
+                    }
+                }
+            worker.start()
+            worker.join(TimeUnit.SECONDS.toMillis(3))
+            assertSoftly {
+                failure.get() shouldBe null
+                result.get() shouldBe "Land"
+                board.bridge.cutCoordinator.staticChoices
+                    .current() shouldBe null
+                (
+                    bridge.history
+                        .drop(before)
+                        .single()
+                        .route as? ResolvedPromptRoute.AutoResolve
+                )?.rule shouldBe
+                    AutomaticAnswerRule.NoChoiceAmongShownOptions
+            }
+        }
+
+        test("a type choice without a published window falls back to the first type with an enum value") {
+            val board = startPuzzleAtMain1(puzzle)
+            val controller = board.human.controller as PlayerController
+            val sa =
+                board.human.battlefield
+                    .card("Island")
+                    .spellAbilities
+                    .first()
+            val bridge = board.bridge.promptBridge(SeatId(1))
+            val before = bridge.history.size
+            controller.chooseSomeType("Card", sa, listOf("Stickers", "Land", "Creature"), false) shouldBe "Land"
+            bridge.history
+                .drop(before)
+                .single()
+                .result shouldBe listOf(1)
+        }
+
+        test("a type choice with one shown value or none answers without a prompt under its named rule") {
             val board = startPuzzleAtMain1(puzzle)
             val controller = board.human.controller as PlayerController
             val source = board.human.battlefield.card("Island")
@@ -276,14 +329,15 @@ class StaticChoiceCoordinatorTest :
             val bridge = board.bridge.promptBridge(SeatId(1))
             val before = bridge.history.size
             assertSoftly {
+                controller.chooseSomeType("Card", sa, listOf("Stickers", "Land"), false) shouldBe "Land"
                 controller.chooseSomeType("Card", sa, listOf("Creature"), false) shouldBe "Creature"
-                controller.chooseSomeType("Card", sa, listOf("Stickers"), false) shouldBe "Stickers"
-                controller.chooseSomeType("Card", sa, emptyList(), true) shouldBe null
+                controller.chooseSomeType("Card", sa, listOf("Stickers"), true) shouldBe null
+                controller.chooseSomeType("Card", sa, listOf("Goblin", "Human"), false) shouldBe "Goblin"
                 controller.chooseSomeType("Card", sa, emptyList(), false) shouldBe null
                 board.bridge.cutCoordinator.staticChoices
                     .current() shouldBe null
                 bridge.history.drop(before).map { (it.route as? ResolvedPromptRoute.AutoResolve)?.rule } shouldBe
-                    List(4) { AutomaticAnswerRule.NoChoiceAmongShownOptions }
+                    List(5) { AutomaticAnswerRule.NoChoiceAmongShownOptions }
             }
         }
     })
