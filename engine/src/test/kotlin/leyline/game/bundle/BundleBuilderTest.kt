@@ -1,5 +1,9 @@
 package leyline.game.bundle
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import forge.card.CardType
 import forge.card.RemoveType
 import forge.game.card.Card
@@ -65,6 +69,7 @@ import leyline.game.state.StaleProjectionTransitionException
 import leyline.testkit.BoardTest
 import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.humanPlayer
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -295,7 +300,15 @@ class BundleBuilderTest :
                 }
 
             // Without the occurrence plan both grants resolve to one row with no handle, so their actions are equal.
-            val projection = ActionMapper.buildProjectionFromSnapshot(1, snapshot, bridge)
+            val ledgerLog = LoggerFactory.getLogger(leyline.game.state.AbilityIdentityLedger::class.java) as Logger
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            ledgerLog.addAppender(appender)
+            val projection =
+                try {
+                    ActionMapper.buildProjectionFromSnapshot(1, snapshot, bridge)
+                } finally {
+                    ledgerLog.detachAppender(appender)
+                }
             val equips = projection.actions.actionsList.filter { it.isGrantedEquip(projection.offers) }
             val gsm =
                 GsmBuilder.embedActions(Messages.GameStateMessage.getDefaultInstance(), projection.actions, GsmFrame.from(snapshot), 1)
@@ -309,6 +322,8 @@ class BundleBuilderTest :
                     .ambiguousCatalogs()
                     .values
                     .sum() shouldBe 1
+                // The two grants have separate definitions but the same shape, so the drop is a warning.
+                appender.list.map { it.level } shouldBe listOf(Level.WARN)
             }
             bridge.shutdown()
         }

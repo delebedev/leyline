@@ -14,7 +14,7 @@ internal fun GameActionBridge.ActionOffer.executionIdentity() =
     ActionExecutionIdentity(command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
 
 /** The Forge ability an offer executes, when its command names one. */
-fun GameActionBridge.ActionOffer.forgeAbility(): SpellAbility? =
+internal fun GameActionBridge.ActionOffer.forgeAbility(): SpellAbility? =
     when (val value = command) {
         is PlayerAction.CastSpell -> value.ability
         is PlayerAction.ActivateAbility -> value.ability
@@ -23,7 +23,7 @@ fun GameActionBridge.ActionOffer.forgeAbility(): SpellAbility? =
     }
 
 /** An offer removed because the client cannot tell its action from the [kept] offer's. */
-data class IndistinguishableOffer(
+internal data class IndistinguishableOffer(
     val kept: GameActionBridge.ActionOffer,
     val dropped: GameActionBridge.ActionOffer,
 )
@@ -34,12 +34,12 @@ data class IndistinguishableOffer(
  * Two offers are indistinguishable when their actions are equal but they execute different Forge abilities: the
  * client's response matches both. The first such offer stays, so a response executes the ability offered first.
  */
-data class DisambiguatedActionCatalog(
+internal data class DisambiguatedActionCatalog(
     val offers: List<GameActionBridge.ActionOffer>,
     val dropped: List<IndistinguishableOffer>,
 )
 
-fun disambiguateActionCatalog(offers: List<GameActionBridge.ActionOffer>): DisambiguatedActionCatalog {
+internal fun disambiguateActionCatalog(offers: List<GameActionBridge.ActionOffer>): DisambiguatedActionCatalog {
     val firstByAction = mutableMapOf<Any, GameActionBridge.ActionOffer>()
     val retained = mutableListOf<GameActionBridge.ActionOffer>()
     val dropped = mutableListOf<IndistinguishableOffer>()

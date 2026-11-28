@@ -17,6 +17,7 @@ import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.disambiguateActionCatalog
+import leyline.bridge.handoff.forgeAbility
 import leyline.bridge.isSuspendHandAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
@@ -218,12 +219,7 @@ object ActionMapper {
                 buildProjection(seatId, snap, bridge, priorityCandidates, activationOccurrences)
             }
         for (offer in projection.offers) {
-            val ability =
-                when (val command = offer.command) {
-                    is PlayerAction.CastSpell -> command.ability
-                    is PlayerAction.ActivateAbility -> command.ability
-                    else -> null
-                }
+            val ability = offer.forgeAbility()
             if (ability != null && ability in unsure) bridge.affordabilityDiagnostics.recordOfferedWhileUnsure(ability)
         }
         return distinguishable(projection, bridge)

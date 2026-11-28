@@ -98,10 +98,12 @@ class AbilityIdentityLedger(
 
     /**
      * Count each offer dropped because its action equals an earlier offer's for a different Forge ability. The key
-     * names the action, the dropped command and its ability. A pair that differs in definition or cost is logged at
-     * error, because the client then cannot choose the cost or ability it would get from the dropped offer.
+     * names the action, the dropped command and its ability. A pair whose abilities differ in effect, cost, text or
+     * keyword declaration is logged at error, because the client then cannot choose what the dropped offer would do.
+     * Equal grants from separate statics, such as two Puresteel Paladins' equip {0}, have separate definitions but
+     * the same shape, and are logged at warning.
      */
-    fun recordIndistinguishableOffers(dropped: List<IndistinguishableOffer>) {
+    internal fun recordIndistinguishableOffers(dropped: List<IndistinguishableOffer>) {
         for ((kept, offer) in dropped) {
             val action = offer.action
             val ability = offer.forgeAbility()
@@ -111,11 +113,8 @@ class AbilityIdentityLedger(
                     "\"${ability?.description.orEmpty()}\""
             if (increment(ambiguousCatalogs, key) > 1) continue
             val keptAbility = kept.forgeAbility()
-            val differs =
-                keptAbility?.definitionId != ability?.definitionId ||
-                    keptAbility?.payCosts?.toSimpleString() != ability?.payCosts?.toSimpleString()
-            if (differs) {
-                log.error("Action catalog dropped an indistinguishable offer with a different definition or cost: {}", key)
+            if (keptAbility?.offerShape() != ability?.offerShape()) {
+                log.error("Action catalog dropped an indistinguishable offer that differs from the kept one: {}", key)
             } else {
                 log.warn("Action catalog dropped an indistinguishable offer; keeping the first: {}", key)
             }
@@ -143,3 +142,6 @@ class AbilityIdentityLedger(
 }
 
 private val log = LoggerFactory.getLogger(AbilityIdentityLedger::class.java)
+
+/** What a player can tell about an offered ability: its effect, cost, text and the keyword declaration it came from. */
+private fun SpellAbility.offerShape(): List<Any?> = listOf(api, payCosts?.toSimpleString(), description, keyword?.original)
