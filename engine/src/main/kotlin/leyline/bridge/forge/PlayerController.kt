@@ -660,7 +660,9 @@ class PlayerController(
     }
 
     private fun castingPermission(card: Card?): PromptSideEffect.CastingPermission? {
-        val stackAbility = game.stack.firstOrNull()?.spellAbility ?: return null
+        // A spell cast earlier in the same resolution sits above the resolving
+        // ability, so the stack top can be an unrelated spell.
+        val stackAbility = game.stack.resolvingAbility ?: return null
         val rootAbility = (stackAbility as? WrappedAbility)?.wrappedAbility ?: stackAbility
         val discoverAbility = generateSequence(rootAbility) { it.subAbility }.firstOrNull { it.api == ApiType.Discover }
         val castAbilityGrpId =
