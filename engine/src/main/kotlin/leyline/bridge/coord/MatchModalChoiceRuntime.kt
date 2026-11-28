@@ -8,6 +8,7 @@ import leyline.bridge.handoff.ModalChoiceInteractionResult
 import leyline.bridge.handoff.ModalChoiceInteractionRuntime
 import leyline.bridge.handoff.ModalChoiceWindowValue
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedModalChoiceInteraction
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
@@ -56,6 +57,17 @@ internal class MatchModalChoiceRuntime(
             admitLocked = ::admitLocked,
             cancelCapable = true,
         )
+
+    override fun identifiesModes(
+        possible: List<AbilitySub>,
+        sourceCard: Card,
+        sourceAbility: SpellAbility,
+    ): Boolean = ModalChoiceWindowCapture(owner).identifiesModes(possible, sourceCard, sourceAbility)
+
+    override fun mayCancel(
+        semantic: PromptSemantic,
+        sourceAbility: SpellAbility,
+    ): Boolean = ModalChoiceWindowCapture(owner).mayCancel(semantic, sourceAbility)
 
     override fun awaitSelection(
         request: PromptRequest,

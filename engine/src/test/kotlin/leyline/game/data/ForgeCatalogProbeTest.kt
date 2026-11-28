@@ -658,10 +658,11 @@ internal fun forgeCatalogProbe(
     board: String = "",
     puzzleFile: String? = null,
     responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
+    serve: (ForgeCardRepository) -> CardRepository = { it },
     block: MatchFlowHarness.(ForgeCardRepository) -> Unit,
 ) {
     val repo = ForgeCardRepository.open()
-    val harness = MatchFlowHarness(cardRepositoryOverride = repo, responseMode = responseMode)
+    val harness = MatchFlowHarness(cardRepositoryOverride = serve(repo), responseMode = responseMode)
     val puzzle =
         if (puzzleFile != null) {
             val path = puzzleFile

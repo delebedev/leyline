@@ -24,6 +24,40 @@ internal class ModalChoiceWindowCapture(
         val aiContext: ModalChoiceAiContext,
     )
 
+    /**
+     * True when the source card's client modal ability lists one mode per option of
+     * [sourceAbility]. The repository answers with the card's first modal ability, so a
+     * list of another length belongs to a different ability of the same card. Against the
+     * Forge catalog, every client card with modal rows has a Forge choice list of that exact
+     * length, and the only prompting choice that differs is another ability's choice.
+     * Limitation: a different choice on the same card with the same option count is still
+     * taken as identified, because the client rows are not matched to the Forge ability.
+     */
+    fun identifiesModes(
+        possible: List<AbilitySub>,
+        sourceCard: Card,
+        sourceAbility: SpellAbility,
+    ): Boolean {
+        val repository = owner.bridge.cardRepository
+        val childGrpIds =
+            repository
+                .findGrpIdByName(sourceCard.name)
+                ?.let(repository::lookupModalOptions)
+                ?.childGrpIds ?: return false
+        val fullList = sourceAbility.getAdditionalAbilityList("Choices")
+        return childGrpIds.size == (fullList?.size ?: possible.size) && (fullList == null || fullList.containsAll(possible))
+    }
+
+    /** A mode choice may be cancelled by the player who activated it, or for a trigger; votes and effect choices may not. */
+    fun mayCancel(
+        semantic: PromptSemantic,
+        sourceAbility: SpellAbility,
+    ): Boolean =
+        semantic != PromptSemantic.VoteChoice &&
+            sourceAbility.api != ApiType.GenericChoice &&
+            sourceAbility.api != ApiType.VillainousChoice &&
+            (sourceAbility.isTrigger || sourceAbility.activatingPlayer == owner.bridge.getPlayer(owner.humanSeat))
+
     fun capture(
         request: PromptRequest,
         possible: List<AbilitySub>,
@@ -91,11 +125,7 @@ internal class ModalChoiceWindowCapture(
                 excluded = excludedOptions,
                 triggered = sourceAbility.isTrigger,
                 isVote = request.route.semantic == PromptSemantic.VoteChoice,
-                allowCancel =
-                    request.route.semantic != PromptSemantic.VoteChoice &&
-                        sourceAbility.api != ApiType.GenericChoice &&
-                        sourceAbility.api != ApiType.VillainousChoice &&
-                        (sourceAbility.isTrigger || sourceAbility.activatingPlayer == owner.bridge.getPlayer(owner.humanSeat)),
+                allowCancel = mayCancel(request.route.semantic, sourceAbility),
             ),
             handlesByOptionIndex = possible.indices.associateWith(possible::get),
             aiContext = ModalChoiceAiContext(sourceAbility, possible.toList(), possibleOptions.map { it.fullIndex }),

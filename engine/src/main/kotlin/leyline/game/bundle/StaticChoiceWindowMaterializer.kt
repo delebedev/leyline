@@ -51,7 +51,7 @@ internal class StaticChoiceWindowMaterializer {
                                         ?: request.sourceId,
                                 ),
                             ).build()
-                    it.allowCancel = AllowCancel.No_a526
+                    it.allowCancel = if (window.allowCancel) AllowCancel.Abort else AllowCancel.No_a526
                 },
             )
         return context.prepared(messages, awaitedRequest = messages.last())

@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
+import leyline.bridge.handoff.StaticChoiceCancelledException
 import leyline.bridge.handoff.StaticChoiceInteractionRuntime
 import leyline.bridge.handoff.StaticChoiceInteractionTimeoutException
 import leyline.bridge.handoff.StaticChoiceWindowValue
@@ -24,17 +25,23 @@ internal class MatchStaticChoiceInteractionRuntime(
         val value: StaticChoiceWindowValue,
         override val cut: PendingPromptCut<StaticChoiceWindowValue>,
         val optionByValue: Map<Int, Int>,
-        override val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    ) : SettledPromptOwner.Window<List<Int>> {
+        override val future: CompletableFuture<List<Int>?> = CompletableFuture(),
+    ) : SettledPromptOwner.Window<List<Int>?> {
         override val interactionId: String get() = published.interactionId
     }
 
     private val slot =
-        settled.mount<Window, List<Int>>(
+        // A null answer is a cancellation, owned only while the window allows one.
+        settled.mount<Window, List<Int>?>(
             PromptTerminalPriority.StaticChoice,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
-            owns = { _, message -> message.type == ClientMessageType.SelectNresp },
+            owns = { pending, message ->
+                message.type == ClientMessageType.SelectNresp ||
+                    (message.type == ClientMessageType.CancelActionReq_097b && pending.value.allowCancel)
+            },
             admitLocked = ::admitLocked,
+            cancelCapable = true,
+            windowCancels = { it.value.allowCancel },
         )
 
     internal var beforeResponseComplete: (() -> Unit)? = null
@@ -49,7 +56,7 @@ internal class MatchStaticChoiceInteractionRuntime(
             } catch (ex: Exception) {
                 owner.fail(ex)
             }
-        return await(publish(initial), timeoutMs)
+        return await(publish(initial), timeoutMs) ?: throw StaticChoiceCancelledException()
     }
 
     override fun shownOptions(request: PromptRequest): List<Int> {
@@ -67,7 +74,10 @@ internal class MatchStaticChoiceInteractionRuntime(
     private fun admitLocked(
         pending: Window,
         message: ClientToGREMessage,
-    ): SettledPromptOwner.SlotAdmission<List<Int>>? {
+    ): SettledPromptOwner.SlotAdmission<List<Int>?>? {
+        if (message.type == ClientMessageType.CancelActionReq_097b) {
+            return if (pending.value.allowCancel) SettledPromptOwner.SlotAdmission(null) else null
+        }
         val selectedValues = message.selectNResp.idsList
         if (selectedValues.size !in pending.value.min..pending.value.max) return null
         if (selectedValues.size != selectedValues.distinct().size) return null
@@ -166,5 +176,5 @@ internal class MatchStaticChoiceInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): List<Int> = slot.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException)
+    ): List<Int>? = slot.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException)
 }

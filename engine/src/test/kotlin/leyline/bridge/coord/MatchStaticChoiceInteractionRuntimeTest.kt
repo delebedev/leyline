@@ -14,6 +14,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
+import leyline.bridge.handoff.StaticChoiceCancelledException
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PrioritySignal
@@ -217,6 +218,54 @@ class MatchStaticChoiceInteractionRuntimeTest :
                     coordinator.staticChoices
                         .current()
                         .shouldBeNull()
+                }
+            }
+        }
+
+        for (allowCancel in listOf(true, false)) {
+            test("named choice with allowCancel=$allowCancel ${if (allowCancel) "accepts" else "refuses"} a cancellation") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val outcome = AtomicReference<Any>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    outcome.set(
+                        runCatching {
+                            coordinator.staticChoices.awaitSelection(
+                                PromptRequest(
+                                    promptType = "choose_one",
+                                    message = "Choose one",
+                                    options = listOf("First", "Second"),
+                                    route = PromptRouteResolver.resolve(PromptSemantic.NamedChoice),
+                                    sourceEntityId = sourceId(board),
+                                    staticOptionIds = listOf(1, 2),
+                                    allowCancel = allowCancel,
+                                ),
+                                3_000,
+                            )
+                        }.fold({ it }, { it }),
+                    )
+                    finished.countDown()
+                }.start()
+                val published = awaitPublished(coordinator)
+                val message =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasSelectNReq() }
+
+                assertSoftly {
+                    message.allowCancel shouldBe if (allowCancel) AllowCancel.Abort else AllowCancel.No_a526
+                    coordinator.acceptSettled(leyline.testkit.cancelActionReq(), published.gameStateId) shouldBe allowCancel
+                    if (allowCancel) {
+                        finished.await(3, TimeUnit.SECONDS) shouldBe true
+                        (outcome.get() is StaticChoiceCancelledException) shouldBe true
+                    } else {
+                        coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(2)), published.gameStateId) shouldBe true
+                        finished.await(3, TimeUnit.SECONDS) shouldBe true
+                        outcome.get() shouldBe listOf(1)
+                    }
                 }
             }
         }

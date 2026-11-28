@@ -20,6 +20,7 @@ data class StaticChoiceWindowValue(
     val min: Int,
     val max: Int,
     val defaultOptionIndex: Int,
+    val allowCancel: Boolean = false,
 )
 
 data class PublishedStaticChoiceInteraction(

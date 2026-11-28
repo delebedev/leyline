@@ -1653,7 +1653,23 @@ option or a finite list of numbers, is sent as a `SelectNReq` with
 one `NonLocalizedString` parameter named `Choice` per option, aligned with
 `ids`. The response selects the option by its index.
 
-- Owner: `StaticChoiceWindowMaterializer.buildRequest`, `StaticChoiceWindowCapture`
+A Forge mode choice whose options the client card data does not list as modes
+of the choosing ability uses the same request, labelled by each option's Forge
+description, instead of a modal `CastingTimeOptionsReq`. Client modes count
+for the ability only when their number matches its options. Each repetition of
+Torment of Hailfire or Rottenmouth Viper asks the player this way whether to
+face the sacrifice or the discard, then asks for that payment. In this form:
+
+- a choice that may repeat a mode is asked one pick at a time, each pick
+  required until the minimum is reached and optional after it, all within one
+  timeout; once it passes, the remaining required picks take the default;
+- a cast-time choice by the player who cast it has `allowCancel=Abort`, and
+  cancelling it backs out of the cast as on the modal request;
+- a vote carries no vote marker, and a timeout on an optional vote abstains;
+- `ForgeAiPolicy` gets no Forge mode context for the choice, so automated play
+  answers it like any other label choice.
+
+- Owner: `StaticChoiceWindowMaterializer.buildRequest`, `StaticChoiceWindowCapture`, `MatchStaticChoiceInteractionRuntime`, `ModalChoicePromptAdapter`
 
 ### Controlled player
 
