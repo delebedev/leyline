@@ -71,6 +71,9 @@ enum class AbilityIdentitySource(
     /** The row of the ability that created a delayed trigger. */
     SpawningAbility("spawning-ability"),
 
+    /** The only triggered row on the card that created a delayed trigger. */
+    SpawningSoleTrigger("spawning-sole-trigger"),
+
     /** The mode chosen for the ability's invocation. */
     ModalChoice("modal-choice"),
 

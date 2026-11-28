@@ -324,7 +324,10 @@ class GameBridge(
         fallback: () -> Int?,
     ): Int? = abilityIdentities.resolvePendingTriggerAbilityIdentity(triggerId, spawningRootAbilityId, fallback)
 
-    fun retainPendingTriggerAbilityIdentities(triggerIds: Set<Int>) = abilityIdentities.retainPendingTriggerAbilityIdentities(triggerIds)
+    fun retainPendingTriggerAbilityIdentities(
+        triggerIds: Set<Int>,
+        stackRootAbilityIds: Set<Int> = emptySet(),
+    ) = abilityIdentities.retainPendingTriggerAbilityIdentities(triggerIds, stackRootAbilityIds)
 
     fun recordPendingTriggerCleanupIdentity(
         triggerId: Int,

@@ -95,6 +95,28 @@ class AbilityIdentitiesTest :
                 identities.lookupPrompt(ninja, ninja.firstSpellAbility).valueOrNull()?.abilityGrpId shouldNotBe MODAL_ROW
             }
         }
+
+        test("a chosen mode stays until its root ability has been on the stack and left it") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val ninja = TestCardInjector.inject(bridge, 1, "Ninja of the Deep Hours", ZoneType.Hand).card
+            val activated = ninja.spellAbilities.single { it.isActivatedAbility && !it.isManaAbility() }
+            val identities = bridge.abilityIdentities
+
+            fun mode() = identities.lookupPrompt(ninja, activated).valueOrNull()?.abilityGrpId
+            identities.recordSelectedModalAbilityGrpId(activated.id, MODAL_ROW)
+
+            identities.retainPendingTriggerAbilityIdentities(emptySet(), emptySet())
+            val beforeStack = mode()
+            identities.retainPendingTriggerAbilityIdentities(emptySet(), setOf(activated.id))
+            val onStack = mode()
+            identities.retainPendingTriggerAbilityIdentities(emptySet(), emptySet())
+
+            assertSoftly {
+                beforeStack shouldBe MODAL_ROW
+                onStack shouldBe MODAL_ROW
+                mode() shouldNotBe MODAL_ROW
+            }
+        }
     }) {
     private companion object {
         const val MODAL_ROW = 424_242

@@ -19,7 +19,7 @@ data class ModalChoiceWindowValue(
     val sourceCardGrpId: Int,
     val sourceForgeAbilityId: Int,
     /** Forge id of the invocation's root ability; the chosen mode is recorded against it. */
-    val rootForgeAbilityId: Int = sourceForgeAbilityId,
+    val rootForgeAbilityId: Int,
     val parentGrpId: Int,
     val ctoGrpId: Int,
     val ctoId: Int,

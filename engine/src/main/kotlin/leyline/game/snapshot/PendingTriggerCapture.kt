@@ -18,7 +18,10 @@ internal object PendingTriggerCapture {
     ): List<PendingTriggerSnapshot> {
         val delayedTriggers = game.triggerHandler.delayedTriggersSnapshot
         val pending = delayedTriggers.mapNotNull { trigger -> captureDelayedTrigger(trigger, bridge) }
-        bridge.retainPendingTriggerAbilityIdentities(delayedTriggers.map { it.id }.toSet())
+        bridge.retainPendingTriggerAbilityIdentities(
+            delayedTriggers.map { it.id }.toSet(),
+            game.stack.mapTo(mutableSetOf()) { it.spellAbility.rootAbility.id },
+        )
         return pending + captureParadigmTriggers(game, bridge)
     }
 

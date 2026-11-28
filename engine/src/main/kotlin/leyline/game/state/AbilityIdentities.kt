@@ -40,6 +40,9 @@ class AbilityIdentities(
 
     /** Chosen mode row keyed by the Forge id of the modal invocation's root ability. */
     private val selectedModalAbilityGrpIds = ConcurrentHashMap<Int, Int>()
+
+    /** Roots with a chosen mode that have been seen on the stack; such an entry retires once its root leaves. */
+    private val modalRootsSeenOnStack = ConcurrentHashMap.newKeySet<Int>()
     private val pendingTriggerAbilityGrpIds = ConcurrentHashMap<Int, Int>()
     private val pendingTriggerCleanupGrpIds = ConcurrentHashMap<Int, Int>()
 
@@ -86,6 +89,7 @@ class AbilityIdentities(
     /** Recorded choices and pending trigger rows; cleared between puzzle games. */
     fun clearChoices() {
         selectedModalAbilityGrpIds.clear()
+        modalRootsSeenOnStack.clear()
         pendingTriggerAbilityGrpIds.clear()
         pendingTriggerCleanupGrpIds.clear()
         stackIdentitiesByRuntimeId.clear()
@@ -150,9 +154,13 @@ class AbilityIdentities(
     private fun spawningTriggerRow(trigger: Trigger): AbilityLookup.Resolved<Int>? {
         val spawningAbility = trigger.spawningAbility ?: return null
         val sourceCard = spawningAbility.hostCard?.effectSource ?: spawningAbility.hostCard ?: return null
-        return lookup(sourceCard, spawningAbility.rootAbility).valueOrNull()?.let {
-            AbilityLookup.Resolved(it.abilityGrpId, AbilityIdentitySource.SpawningAbility)
+        lookup(sourceCard, spawningAbility.rootAbility).valueOrNull()?.let {
+            return AbilityLookup.Resolved(it.abilityGrpId, AbilityIdentitySource.SpawningAbility)
         }
+        return cardRepository
+            .findGrpIdByName(sourceCard.name)
+            ?.let(::soleTriggeredAbilityGrpId)
+            ?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.SpawningSoleTrigger) }
     }
 
     /** Row of the ability that created [trigger], for delayed triggers. */
@@ -163,7 +171,16 @@ class AbilityIdentities(
                 spawningTriggerRow(trigger) ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow),
             ).valueOrNull()
 
-    /** Identity of a bare definition reference on [card], through its registry and then a rebuilt one. */
+    private fun soleTriggeredAbilityGrpId(cardGrpId: Int): Int? =
+        cardRepository
+            .findByGrpId(cardGrpId)
+            ?.abilityIds
+            .orEmpty()
+            .mapNotNull { (abilityGrpId, _) ->
+                abilityGrpId.takeIf { cardRepository.findAbilityInfo(it)?.category == AbilityRegistry.TRIGGER_CATEGORY }
+            }.singleOrNull()
+
+    /** Identity of a bare definition reference on [card], through its registry. */
     fun lookup(
         card: Card,
         definition: AbilityDefinitionRef,
@@ -268,9 +285,19 @@ class AbilityIdentities(
                 pendingTriggerAbilityGrpIds[triggerId] = resolved
             }
 
-    fun retainPendingTriggerAbilityIdentities(triggerIds: Set<Int>) {
+    /**
+     * Keep the rows of the pending triggers in [triggerIds]. A chosen mode is kept while its root ability is on the
+     * stack ([stackRootAbilityIds]) or not yet there, and retired once its root has been on the stack and left.
+     */
+    fun retainPendingTriggerAbilityIdentities(
+        triggerIds: Set<Int>,
+        stackRootAbilityIds: Set<Int> = emptySet(),
+    ) {
         pendingTriggerAbilityGrpIds.keys.removeIf { it !in triggerIds }
         pendingTriggerCleanupGrpIds.keys.removeIf { it !in triggerIds }
+        selectedModalAbilityGrpIds.keys.removeIf { it in modalRootsSeenOnStack && it !in stackRootAbilityIds }
+        modalRootsSeenOnStack.retainAll(selectedModalAbilityGrpIds.keys)
+        stackRootAbilityIds.filterTo(modalRootsSeenOnStack) { selectedModalAbilityGrpIds.containsKey(it) }
     }
 
     fun recordPendingTriggerCleanupIdentity(
