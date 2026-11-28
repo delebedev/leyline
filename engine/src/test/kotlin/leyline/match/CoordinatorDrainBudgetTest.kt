@@ -18,6 +18,7 @@ import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 class CoordinatorDrainBudgetTest :
@@ -99,17 +100,18 @@ class CoordinatorDrainBudgetTest :
             }
         }
 
-        test("a slow synchronization chain below the stop limit may exceed the drain time limit") {
+        test("a slow progressing synchronization chain continues past the total drain time") {
             val board = startWithBoard { _, _, _ -> }
             val bridge = board.bridge
             bridge.cutCoordinator.registerViewer(SeatId(1))
-            bridge.priorityWaitMs = 200
+            val clock = AtomicLong()
+            val stepNanos = TimeUnit.MILLISECONDS.toNanos(40)
             val engine =
                 Thread {
                     runCatching {
                         repeat(8) {
                             bridge.actionBridge(SeatId(1)).awaitAction(syncState())
-                            CountDownLatch(1).await(40, TimeUnit.MILLISECONDS)
+                            clock.addAndGet(stepNanos)
                         }
                         bridge.actionBridge(SeatId(1)).awaitAction(syncState().copy(kind = PendingActionKind.PRIORITY))
                     }
@@ -117,10 +119,16 @@ class CoordinatorDrainBudgetTest :
             try {
                 bridge.awaitPriorityWithTimeout(1_000) shouldBe true
                 val sink = DrainBudgetSink()
-                val started = System.nanoTime()
                 assertSoftly {
-                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 100, drainStopLimit = 20).sent shouldBe true
-                    System.nanoTime() - started shouldBeGreaterThanOrEqual TimeUnit.MILLISECONDS.toNanos(250)
+                    drainCoordinatorBarrier(
+                        sink,
+                        bridge,
+                        SeatId(1),
+                        drainTimeoutMs = 100,
+                        drainStopLimit = 20,
+                        nowNanos = clock::get,
+                    ).sent shouldBe true
+                    clock.get() shouldBe 8 * stepNanos
                     bridge.cutCoordinator.failure() shouldBe null
                     bridge
                         .actionBridge(SeatId(1))
@@ -129,6 +137,45 @@ class CoordinatorDrainBudgetTest :
                         ?.kind shouldBe PendingActionKind.PRIORITY
                 }
             } finally {
+                runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
+                engine.join(1_000)
+            }
+        }
+
+        test("a drain without progress terminalizes at the drain time limit") {
+            val board = startWithBoard { _, _, _ -> }
+            val bridge = board.bridge
+            bridge.cutCoordinator.registerViewer(SeatId(1))
+            bridge.priorityWaitMs = 60_000
+            val released = CountDownLatch(1)
+            val stuck = CountDownLatch(1)
+            val engine =
+                Thread {
+                    runCatching {
+                        bridge.actionBridge(SeatId(1)).awaitAction(syncState())
+                        released.countDown()
+                        stuck.await()
+                    }
+                }.also { it.start() }
+            val receiverFailure = AtomicReference<Throwable>()
+            val receiverDone = CountDownLatch(1)
+            try {
+                bridge.awaitPriorityWithTimeout(1_000) shouldBe true
+                val receiver =
+                    Thread {
+                        runCatching { drainCoordinatorBarrier(DrainBudgetSink(), bridge, SeatId(1), drainTimeoutMs = 50) }
+                            .onFailure(receiverFailure::set)
+                        receiverDone.countDown()
+                    }.also { it.start() }
+                assertSoftly {
+                    released.await(1_000, TimeUnit.MILLISECONDS) shouldBe true
+                    receiverDone.await(5_000, TimeUnit.MILLISECONDS) shouldBe true
+                    (receiverFailure.get() is PlaybackTerminalFailure) shouldBe true
+                    bridge.cutCoordinator.failure() shouldBe receiverFailure.get()
+                }
+                receiver.join(1_000)
+            } finally {
+                stuck.countDown()
                 runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
                 engine.join(1_000)
             }
