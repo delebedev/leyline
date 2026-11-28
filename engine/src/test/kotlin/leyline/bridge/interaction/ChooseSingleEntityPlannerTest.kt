@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 
@@ -112,6 +113,39 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
+        test("Play over library cards its ability identified selects the library choice") {
+            val plan = planFor(playSa(mapOf("Valid" to "Card.IsRemembered+nonLand")), isOptional = true, candidateRefs = libraryRefs)
+
+            assertSoftly(plan) {
+                routePolicy shouldBe ChooseSingleEntityRoutePolicy.Prompt
+                semantic shouldBe PromptSemantic.SelectNResolution
+                min shouldBe 0
+                resolutionRouteInput?.abilityShape shouldBe ResolutionAbilityShape.LibraryChoice
+                resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe true
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+            }
+        }
+
+        test("Play identifies its library cards only through identified Defined cards or fully narrowed Valid filters") {
+            fun shape(params: Map<String, String>) =
+                planFor(playSa(params), isOptional = true, candidateRefs = libraryRefs).resolutionRouteInput?.abilityShape
+
+            assertSoftly {
+                shape(mapOf("Defined" to "Imprinted")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Defined" to "Remembered.nonLand")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Defined" to "TopOfLibrary")) shouldBe ResolutionAbilityShape.Other
+                shape(mapOf("Defined" to "ValidLibrary Card.YouOwn")) shouldBe ResolutionAbilityShape.Other
+                shape(mapOf("Valid" to "Card.IsImprinted")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Valid" to "Instant.IsRemembered,Sorcery.IsRemembered")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Valid" to "Card.IsRemembered+Instant,Card.Sorcery")) shouldBe ResolutionAbilityShape.Other
+                shape(mapOf("Valid" to "Instant,Sorcery")) shouldBe ResolutionAbilityShape.Other
+                planFor(playSa(mapOf("Valid" to "Instant,Sorcery")), isOptional = true, candidateRefs = libraryRefs)
+                    .resolutionRouteInput
+                    ?.isHiddenLibraryCardChoice shouldBe false
+            }
+        }
+
         test("source-aware paths include the host card id") {
             assertSoftly {
                 planFor(learnSa()).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
@@ -198,6 +232,8 @@ private fun manifestDreadSa(): SpellAbility = abilitySub(ApiType.ManifestDread)
 private fun genericSa(): SpellAbility = abilitySub(ApiType.ChooseCard)
 
 private fun digSa(): SpellAbility = abilitySub(ApiType.Dig)
+
+private fun playSa(params: Map<String, String>): SpellAbility = abilitySub(ApiType.Play, params)
 
 private fun abilitySub(
     api: ApiType,

@@ -237,4 +237,75 @@ class EffectCardChoiceTest :
                 human.battlefield.card("Dragon's Disciple").netToughness shouldBe 4
             }
         }
+
+        for (cast in listOf(true, false)) {
+            session(
+                "Svella's top-four cast offers the revealed spells cast=$cast",
+                puzzle = """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanbattlefield=Svella, Ice Shaper;Mountain;Mountain;Mountain;Mountain;Forest;Forest;Forest;Forest
+                    humanlibrary=Llanowar Elves;Grizzly Bears;Forest;Forest;Island;Island
+                    ailibrary=Forest;Forest;Forest
+                """,
+                fullControl = true,
+            ) {
+                activateAbility("Svella, Ice Shaper", 1)
+                passUntil { allMessages.any { it.hasSelectNReq() } } shouldBe true
+                val message = allMessages.last { it.hasSelectNReq() }
+                val req = message.selectNReq
+                val offered = req.idsList.associateBy { cardByIid(it)?.name }
+                assertSoftly {
+                    message.prompt.promptId shouldBe PromptIds.CHOOSE_CARD
+                    offered.keys shouldBe setOf("Llanowar Elves", "Grizzly Bears")
+                    req.minSel shouldBe 0
+                    req.maxSel shouldBe 1
+                }
+                holdNextOptionalAction()
+                respondToSelectN(if (cast) listOf(offered.getValue("Grizzly Bears")) else emptyList())
+                if (cast) {
+                    passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
+                    allMessages.last { it.hasOptionalActionMessage() }.optionalActionMessage.sourceId shouldBe
+                        offered.getValue("Grizzly Bears")
+                    respondToOptionalAction(true)
+                }
+                passUntilResolved()
+                assertSoftly {
+                    "Grizzly Bears" should beInZoneOf(if (cast) ZoneType.Battlefield else ZoneType.Library, human)
+                    "Llanowar Elves" should beMissingFrom(ZoneType.Battlefield, human)
+                    "Llanowar Elves" should beInZoneOf(ZoneType.Library, human)
+                    human.getZone(ZoneType.Library).cards.size shouldBe if (cast) 5 else 6
+                }
+            }
+        }
+
+        session(
+            "Talent of the Telepath casts a chosen spell from the opponent's revealed cards",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Talent of the Telepath
+                humanbattlefield=Island;Island;Island;Island
+                humanlibrary=Island;Island;Island
+                ailibrary=Divination;Opt;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+            """,
+            fullControl = true,
+        ) {
+            castSpellUntilSelectTargetsReq("Talent of the Telepath")
+            selectTargets(listOf(OPPONENT_SEAT))
+            passUntil { allMessages.any { it.hasSelectNReq() } } shouldBe true
+            val req = lastSelectNReq()
+            val offered = req.idsList.associateBy { cardByIid(it)?.name }
+            offered.keys shouldBe setOf("Divination", "Opt")
+            holdNextOptionalAction()
+            respondToSelectN(listOf(offered.getValue("Divination")))
+            passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
+            respondToOptionalAction(true)
+            passUntil { game().stack.isEmpty } shouldBe true
+            human.getZone(ZoneType.Hand).cards.size shouldBe 2
+        }
     })

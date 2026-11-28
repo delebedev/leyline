@@ -66,7 +66,7 @@ object ChooseSingleEntityPlanner {
             resolutionRouteInput(
                 context.candidateRefs,
                 context.optionCount,
-                if (context.sa?.api == ApiType.Dig) ResolutionAbilityShape.Dig else ResolutionAbilityShape.Other,
+                abilityShape(context.sa),
                 context.allCandidatesProjectable,
             )
         val isSearch =
@@ -116,4 +116,11 @@ object ChooseSingleEntityPlanner {
             resolutionRouteInput = resolutionInput.takeIf { semantic == PromptSemantic.SelectNResolution },
         )
     }
+
+    private fun abilityShape(sa: SpellAbility?): ResolutionAbilityShape =
+        when {
+            sa?.api == ApiType.Dig -> ResolutionAbilityShape.Dig
+            SpellAbilityShapes.playsCardsItIdentified(sa) -> ResolutionAbilityShape.LibraryChoice
+            else -> ResolutionAbilityShape.Other
+        }
 }
