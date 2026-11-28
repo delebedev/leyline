@@ -364,6 +364,7 @@ class StaticChoiceCoordinator(
         val isCardType = kindOfType == "Card"
         val ordered = if (isCardType) validTypes.toList() else validTypes.sorted()
         val typeIds = ordered.map { type -> if (isCardType) StaticChoiceIds.cardTypeIdFor(type) else StaticChoiceIds.subtypeIdFor(type) }
+        val idByType = ordered.zip(typeIds).toMap()
         val labelled = bridge.choicePresentation == CostChoicePresentation.ForgeText && typeIds.any { it == null }
 
         fun request(choices: List<Pair<String, Int>>) =
@@ -390,6 +391,9 @@ class StaticChoiceCoordinator(
                         else -> StaticList.SubTypes
                     },
                 staticOptionIds = choices.map { it.second },
+                // A labelled pick with an enum id records the same ChoiceResult as the enum-list form.
+                choiceResultList = (if (isCardType) StaticList.CardTypes else StaticList.SubTypes).takeIf { labelled },
+                choiceResultValues = if (labelled) choices.map { idByType[it.first] } else emptyList(),
             )
 
         // An enum-list choice can show only the types with a protocol id.

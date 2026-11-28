@@ -116,9 +116,10 @@ internal class MatchStaticChoiceInteractionRuntime(
         pending: Window,
         selectedValues: List<Int>,
     ) {
-        val domain = pending.value.staticList ?: return
+        val domain = pending.value.resultList ?: return
         val source = pending.value.sourceForgeCardId ?: return
-        selectedValues.forEach { value ->
+        val resultByValue = pending.value.options.associate { it.protocolValue to it.resultValue }
+        selectedValues.mapNotNull { resultByValue[it] }.forEach { value ->
             owner.bridge
                 .seat(owner.humanSeat)
                 .prompt.journal

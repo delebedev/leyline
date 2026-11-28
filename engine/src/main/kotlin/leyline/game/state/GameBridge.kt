@@ -464,7 +464,11 @@ class GameBridge(
     fun configureSyntheticSeat(seatId: SeatId) {
         actionBridges[seatId.value] = GameActionBridge(timeoutMs = 0, prioritySignal = prioritySignal)
         promptBridges[seatId.value] =
-            InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal).also {
+            InteractivePromptBridge(
+                timeoutMs = 0,
+                prioritySignal = prioritySignal,
+                choicePresentation = engineSettings.costChoicePresentation,
+            ).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
@@ -1808,7 +1812,7 @@ class GameBridge(
                 block()
                 return
             }
-        val tempPrompt = InteractivePromptBridge(timeoutMs = 0)
+        val tempPrompt = InteractivePromptBridge(timeoutMs = 0, choicePresentation = engineSettings.costChoicePresentation)
         val tempAction = GameActionBridge(timeoutMs = 0)
         val tempMulligan = MulliganBridge(autoKeep = true)
         val tempController =

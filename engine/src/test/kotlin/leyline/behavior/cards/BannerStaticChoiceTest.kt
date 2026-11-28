@@ -93,7 +93,35 @@ class BannerStaticChoiceTest :
             }
             respondToSelectN(listOf(tribble))
             passUntilResolved()
-            human.battlefield.card("Patchwork Banner").chosenType shouldBe "Tribble"
+            assertSoftly {
+                human.battlefield.card("Patchwork Banner").chosenType shouldBe "Tribble"
+                allMessages.lastGsmMatching { gsm -> gsm.annotationsList.any { AnnotationType.ChoiceResult in it.typeList } } shouldBe null
+            }
+        }
+
+        session(
+            "Patchwork Banner records an enum-valued pick from Forge-text labels as a static subtype choice",
+            puzzleFile = "data/puzzles/patchwork-banner-static-choice.pzl",
+            costChoicePresentation = CostChoicePresentation.ForgeText,
+        ) {
+            val req = castSpellUntilSelectNReq("Patchwork Banner")
+            val goblinId = StaticChoiceIds.subtypeIdFor("Goblin")!!
+            respondToSelectN(listOf(req.prompt.parametersList.indexOfFirst { it.stringValue == "Goblin" } + 1))
+            passUntilResolved()
+
+            val choiceResult =
+                checkNotNull(
+                    allMessages.lastGsmMatching { gsm ->
+                        gsm.annotationsList.any { AnnotationType.ChoiceResult in it.typeList }
+                    },
+                ) { "No ChoiceResult annotation emitted" }
+                    .annotationsList
+                    .annotation(AnnotationType.ChoiceResult)
+            assertSoftly {
+                human.battlefield.card("Patchwork Banner").chosenType shouldBe "Goblin"
+                choiceResult.detailInt(DetailKeys.CHOICE_VALUE) shouldBe goblinId
+                choiceResult.detailInt(DetailKeys.CHOICE_DOMAIN) shouldBe StaticList.SubTypes.number
+            }
         }
 
         // protocol: ChoiceResult.transient, ChoiceResult.domain-static-list, LinkInfo.type-shape

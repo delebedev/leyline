@@ -994,6 +994,13 @@ data class PromptRequest(
     val staticList: StaticList? = null,
     /** Per-option static enum values frozen into coordinator-owned StaticChoice windows. */
     val staticOptionIds: List<Int> = emptyList(),
+    /**
+     * Enum list a labelled StaticChoice records its `ChoiceResult` against when the
+     * offered values are prompt indices. Null records no result.
+     */
+    val choiceResultList: StaticList? = null,
+    /** Per-option values in [choiceResultList], aligned with [options]; null when an option has none. */
+    val choiceResultValues: List<Int?> = emptyList(),
     /** Waterbend mana component carried into its PayCostsReq payment envelope. */
     val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
     /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */

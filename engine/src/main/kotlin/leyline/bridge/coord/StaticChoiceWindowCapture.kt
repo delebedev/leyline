@@ -28,13 +28,23 @@ internal object StaticChoiceWindowCapture {
         check(request.staticOptionIds.distinct().size == request.staticOptionIds.size) { "StaticChoice values must be distinct" }
         check(request.min in 0..request.max && request.max <= request.options.size) { "Invalid StaticChoice cardinality" }
         check(request.defaultIndex in request.options.indices) { "Invalid StaticChoice default option" }
+        check(request.choiceResultList == null || request.staticList == null) { "A choice result list applies to labelled choices" }
+        check(request.choiceResultValues.isEmpty() || request.choiceResultValues.size == request.options.size) {
+            "Choice result values must match options"
+        }
         return StaticChoiceWindowValue(
             kind = route.descriptor.kind,
             staticList = request.staticList,
+            resultList = request.staticList ?: request.choiceResultList,
             sourceForgeAbilityId = request.forgeAbilityId,
             options =
                 request.staticOptionIds.mapIndexed { index, value ->
-                    StaticChoiceOptionValue(index, value, request.options[index].takeIf { route.descriptor.kind == StaticChoiceKind.Named })
+                    StaticChoiceOptionValue(
+                        index,
+                        value,
+                        request.options[index].takeIf { route.descriptor.kind == StaticChoiceKind.Named },
+                        resultValue = if (request.staticList != null) value else request.choiceResultValues.getOrNull(index),
+                    )
                 },
             sourceForgeCardId = request.sourceEntityId?.let(::ForgeCardId),
             min = request.min,

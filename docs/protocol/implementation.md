@@ -1600,11 +1600,13 @@ modes differ:
 
 - `ForgeText` sends every offered type as a [named label
   choice](#named-label-choice), one `Choice` parameter per type, labelled by
-  Forge's type name;
+  Forge's type name. A chosen type with an enum value records the same
+  `ChoiceResult` and `LinkInfo` as the enum-list form. Forge applies a chosen
+  type without an enum value, but no annotation names it to the client;
 - `Native` keeps the restricted enum list and leaves out the types without an
   enum value, which the player cannot choose.
 
-- Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`, `StaticChoiceCoordinator.chooseSomeType`
+- Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`, `StaticChoiceCoordinator.chooseSomeType`, `MatchStaticChoiceInteractionRuntime`
 
 ### Vote
 
