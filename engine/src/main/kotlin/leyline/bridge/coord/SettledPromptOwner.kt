@@ -36,6 +36,7 @@ internal class SettledPromptOwner(
         owns: (W, ClientToGREMessage) -> Boolean,
         admitLocked: (W, ClientToGREMessage) -> SlotAdmission<R>?,
         cancelCapable: Boolean = false,
+        windowCancels: (W) -> Boolean = { true },
         onTerminateLocked: (W?, Throwable) -> Unit = { _, _ -> },
         onResetLocked: (W?) -> Unit = {},
     ): Slot<W, R> where W : Window<R> =
@@ -45,6 +46,7 @@ internal class SettledPromptOwner(
             owns,
             admitLocked,
             cancelCapable,
+            windowCancels,
             onTerminateLocked,
             onResetLocked,
         ).also(slots::add)
@@ -122,10 +124,14 @@ internal class SettledPromptOwner(
         private val owns: (W, ClientToGREMessage) -> Boolean,
         private val admitLocked: (W, ClientToGREMessage) -> SlotAdmission<R>?,
         override val cancelCapable: Boolean,
+        private val windowCancels: (W) -> Boolean,
         private val onTerminateLocked: (W?, Throwable) -> Unit,
         private val onResetLocked: (W?) -> Unit,
     ) : MountedSlot where W : Window<R> {
         private var window: W? = null
+
+        /** Whether the published window accepted a cancellation; a retired request remembers it. */
+        private var publishedCancels = false
         private var correlation: SettledPromptCorrelation? = null
         private var awaitedRequest: GREToClientMessage? = null
 
@@ -161,6 +167,7 @@ internal class SettledPromptOwner(
                     val publication = prepare(UUID.randomUUID().toString(), feed, owner.bridge.getGame(), planner)
                     publishPrepared(prior, planner, publication)
                     window = publication.window
+                    publishedCancels = cancelCapable && windowCancels(publication.window)
                     correlation = publication.correlation
                     awaitedRequest =
                         publication.window.cut.messages
@@ -282,7 +289,7 @@ internal class SettledPromptOwner(
         }
 
         private fun retireLocked() {
-            correlation?.let { retired[it.requestMsgId] = RetiredCorrelation(it.gameStateId, cancelCapable) }
+            correlation?.let { retired[it.requestMsgId] = RetiredCorrelation(it.gameStateId, publishedCancels) }
             correlation = null
             awaitedRequest = null
         }

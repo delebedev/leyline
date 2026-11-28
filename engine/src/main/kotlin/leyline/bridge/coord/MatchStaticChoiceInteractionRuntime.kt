@@ -41,6 +41,7 @@ internal class MatchStaticChoiceInteractionRuntime(
             },
             admitLocked = ::admitLocked,
             cancelCapable = true,
+            windowCancels = { it.value.allowCancel },
         )
 
     internal var beforeResponseComplete: (() -> Unit)? = null

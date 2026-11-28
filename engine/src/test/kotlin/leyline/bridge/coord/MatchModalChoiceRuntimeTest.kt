@@ -67,6 +67,36 @@ class MatchModalChoiceRuntimeTest :
             return checkNotNull(published)
         }
 
+        for ((caster, cancels) in listOf("human" to true, "AI" to false)) {
+            test("a cast-time mode choice activated by the $caster ${if (cancels) "may" else "may not"} be cancelled") {
+                val board =
+                    startPuzzleAtMain1(
+                        """
+                        [metadata]
+                        Name:modal cancel rule
+                        Goal:Win
+                        Turns:1
+
+                        [state]
+                        ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=20
+                        AILife=20
+                        humanhand=Abzan Charm
+                        humanlibrary=Forest
+                        ailibrary=Forest
+                        """.trimIndent(),
+                    )
+                val sa =
+                    board.human.hand
+                        .card("Abzan Charm")
+                        .firstSpellAbility
+                        .also { it.activatingPlayer = if (cancels) board.human else board.ai }
+                board.bridge.cutCoordinator.modalChoices
+                    .mayCancel(PromptSemantic.ModalChoice, sa) shouldBe cancels
+            }
+        }
+
         for (selectedIndex in listOf(0, 1)) {
             test("human vote publishes named options and returns option $selectedIndex without a cast marker") {
                 val board = startPuzzleAtMain1FromResource("data/puzzles/selvala-vote.pzl")

@@ -44,6 +44,16 @@ internal class ModalChoiceWindowCapture(
         return childGrpIds.size == (fullList?.size ?: possible.size) && (fullList == null || fullList.containsAll(possible))
     }
 
+    /** A mode choice may be cancelled by the player who activated it, or for a trigger; votes and effect choices may not. */
+    fun mayCancel(
+        semantic: PromptSemantic,
+        sourceAbility: SpellAbility,
+    ): Boolean =
+        semantic != PromptSemantic.VoteChoice &&
+            sourceAbility.api != ApiType.GenericChoice &&
+            sourceAbility.api != ApiType.VillainousChoice &&
+            (sourceAbility.isTrigger || sourceAbility.activatingPlayer == owner.bridge.getPlayer(owner.humanSeat))
+
     fun capture(
         request: PromptRequest,
         possible: List<AbilitySub>,
@@ -111,11 +121,7 @@ internal class ModalChoiceWindowCapture(
                 excluded = excludedOptions,
                 triggered = sourceAbility.isTrigger,
                 isVote = request.route.semantic == PromptSemantic.VoteChoice,
-                allowCancel =
-                    request.route.semantic != PromptSemantic.VoteChoice &&
-                        sourceAbility.api != ApiType.GenericChoice &&
-                        sourceAbility.api != ApiType.VillainousChoice &&
-                        (sourceAbility.isTrigger || sourceAbility.activatingPlayer == owner.bridge.getPlayer(owner.humanSeat)),
+                allowCancel = mayCancel(request.route.semantic, sourceAbility),
             ),
             handlesByOptionIndex = possible.indices.associateWith(possible::get),
             aiContext = ModalChoiceAiContext(sourceAbility, possible.toList(), possibleOptions.map { it.fullIndex }),

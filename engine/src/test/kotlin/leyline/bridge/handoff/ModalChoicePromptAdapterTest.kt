@@ -9,6 +9,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.NonInteractiveScope
@@ -76,9 +77,12 @@ class ModalChoicePromptAdapterTest :
         fun labelAdapter(
             records: MutableList<PromptCallStatus> = mutableListOf(),
             identifies: () -> Boolean = { false },
+            timeoutMs: Long? = null,
+            mayCancel: Boolean = true,
+            waits: MutableList<Long?> = mutableListOf(),
             answer: (PromptRequest) -> List<Int>,
         ) = ModalChoicePromptAdapter(
-            timeoutMs = null,
+            timeoutMs = timeoutMs,
             strict = false,
             isGameLoopThread = { true },
             runtime = {
@@ -88,6 +92,11 @@ class ModalChoicePromptAdapterTest :
                         sourceCard: Card,
                         sourceAbility: SpellAbility,
                     ) = identifies()
+
+                    override fun mayCancel(
+                        semantic: PromptSemantic,
+                        sourceAbility: SpellAbility,
+                    ) = mayCancel
 
                     override fun awaitSelection(
                         request: PromptRequest,
@@ -107,7 +116,10 @@ class ModalChoicePromptAdapterTest :
                     override fun awaitSelection(
                         request: PromptRequest,
                         timeoutMs: Long?,
-                    ) = answer(request)
+                    ): List<Int> {
+                        waits += timeoutMs
+                        return answer(request)
+                    }
                 }
             },
         )
@@ -167,6 +179,46 @@ class ModalChoicePromptAdapterTest :
             assertSoftly {
                 result shouldBe listOf(choices[1], choices[1])
                 asked.map { it.min to it.max } shouldBe listOf(1 to 1, 1 to 1, 0 to 1)
+            }
+        }
+
+        test("a label choice the player did not activate cannot be cancelled") {
+            val asked = mutableListOf<PromptRequest>()
+            val choices = listOf(handle(), handle())
+
+            labelAdapter(mayCancel = false) { request -> listOf(0).also { asked += request } }
+                .request(request(), choices, choices[0].hostCard, choices[0])
+
+            asked.single().allowCancel shouldBe false
+        }
+
+        test("repeated picks share one deadline") {
+            val waits = mutableListOf<Long?>()
+            val answers = ArrayDeque(listOf(listOf(1), listOf(1), emptyList()))
+            val choices = listOf(handle(), handle())
+
+            labelAdapter(timeoutMs = 60_000, waits = waits) { answers.removeFirst() }
+                .request(request().copy(min = 2, max = 3, allowRepeat = true), choices, choices[0].hostCard, choices[0])
+
+            assertSoftly {
+                waits.size shouldBe 3
+                val remaining = waits.map { checkNotNull(it) }
+                remaining shouldBe remaining.sortedDescending()
+                remaining.first() shouldBeLessThanOrEqual 60_000L
+            }
+        }
+
+        test("a timed-out repeated pick defaults the remaining required picks without asking again") {
+            val records = mutableListOf<PromptCallStatus>()
+            val choices = listOf(handle(), handle())
+
+            val result =
+                labelAdapter(records, timeoutMs = 1_000) { throw StaticChoiceInteractionTimeoutException() }
+                    .request(request().copy(min = 2, max = 3, allowRepeat = true), choices, choices[0].hostCard, choices[0])
+
+            assertSoftly {
+                result shouldBe listOf(choices[0], choices[0])
+                records shouldBe listOf(PromptCallStatus.TIMEOUT)
             }
         }
 

@@ -1,11 +1,11 @@
 package leyline.bridge.handoff
 
-import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import leyline.bridge.NonInteractiveScope
 import leyline.bridge.types.PrioritySignal
+import java.util.concurrent.TimeUnit
 
 /**
  * Thin engine/session handoff for exact-handle modal requests.
@@ -71,7 +71,7 @@ internal class ModalChoicePromptAdapter(
                 record(request, PromptCallStatus.ERROR, emptyList())
                 throw ex
             }
-        if (result == null) return requestByLabel(request, fallback, sourceAbility).mapNotNull(possible::getOrNull)
+        if (result == null) return requestByLabel(request, fallback, sourceAbility, modalRuntime).mapNotNull(possible::getOrNull)
         record(
             request,
             if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
@@ -85,46 +85,60 @@ internal class ModalChoicePromptAdapter(
     /**
      * Asks [request] by label. A repeatable choice is asked one pick at a time, each pick
      * required until [PromptRequest.min] picks are made and optional up to
-     * [PromptRequest.max]. Only a cast-time choice may be cancelled, as on the modal route.
+     * [PromptRequest.max], all within one deadline; once it passes, the remaining required
+     * picks take the fallback without asking. Only a cast-time choice by the player who
+     * activated it may be cancelled, as on the modal route.
      */
     private fun requestByLabel(
         request: PromptRequest,
         fallback: List<Int>,
         sourceAbility: SpellAbility,
+        modalRuntime: ModalChoiceInteractionRuntime,
     ): List<Int> {
-        val cancellable =
-            request.route.semantic == PromptSemantic.ModalChoice &&
-                !sourceAbility.isTrigger &&
-                sourceAbility.api != ApiType.GenericChoice &&
-                sourceAbility.api != ApiType.VillainousChoice
+        val cancellable = !sourceAbility.isTrigger && modalRuntime.mayCancel(request.route.semantic, sourceAbility)
         if (!request.allowRepeat || request.max <= 1) {
-            return askByLabel(request.asNamedChoice(request.min, request.max, cancellable), fallback)
+            return askByLabel(request.asNamedChoice(request.min, request.max, cancellable), fallback, timeoutMs) ?: fallback
         }
+        val deadline = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) }
         val picks = mutableListOf<Int>()
         while (picks.size < request.max) {
             val required = if (picks.size < request.min) 1 else 0
-            val pick = askByLabel(request.asNamedChoice(required, 1, cancellable), fallback.take(required))
+            val remainingMs = deadline?.let { TimeUnit.NANOSECONDS.toMillis(it - System.nanoTime()) }
+            val pick =
+                if (remainingMs != null && remainingMs <= 0) {
+                    null
+                } else {
+                    askByLabel(request.asNamedChoice(required, 1, cancellable), fallback.take(required), remainingMs)
+                }
+            if (pick == null) {
+                fallback.firstOrNull()?.let { index -> repeat((request.min - picks.size).coerceAtLeast(0)) { picks += index } }
+                break
+            }
             if (pick.isEmpty()) break
             picks += pick
         }
         return picks
     }
 
-    /** Asks one label choice; a timeout answers [timeoutAnswer] and a cancellation unwinds the cast. */
+    /**
+     * Asks one label choice within [waitMs]. A timeout is recorded with [timeoutAnswer] and
+     * returns null; a cancellation unwinds the cast.
+     */
     private fun askByLabel(
         request: PromptRequest,
         timeoutAnswer: List<Int>,
-    ): List<Int> {
+        waitMs: Long?,
+    ): List<Int>? {
         val labels = checkNotNull(labelRuntime()) { "StaticChoice runtime is not registered" }
         return try {
-            labels.awaitSelection(request, timeoutMs).also {
+            labels.awaitSelection(request, waitMs).also {
                 record(request, PromptCallStatus.RESPONDED, it)
                 prioritySignal?.markPromptResolved()
             }
         } catch (_: StaticChoiceInteractionTimeoutException) {
             record(request, PromptCallStatus.TIMEOUT, timeoutAnswer)
             prioritySignal?.signal()
-            timeoutAnswer
+            null
         } catch (_: StaticChoiceCancelledException) {
             record(request, PromptCallStatus.RESPONDED, emptyList())
             prioritySignal?.markPromptResolved()
