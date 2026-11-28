@@ -57,6 +57,12 @@ internal class MatchModalChoiceRuntime(
             cancelCapable = true,
         )
 
+    override fun identifiesModes(
+        possible: List<AbilitySub>,
+        sourceCard: Card,
+        sourceAbility: SpellAbility,
+    ): Boolean = ModalChoiceWindowCapture(owner).identifiesModes(possible, sourceCard, sourceAbility)
+
     override fun awaitSelection(
         request: PromptRequest,
         possible: List<AbilitySub>,

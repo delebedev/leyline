@@ -24,6 +24,24 @@ internal class ModalChoiceWindowCapture(
         val aiContext: ModalChoiceAiContext,
     )
 
+    /** True when the source card's client data lists a mode identity for every option in [possible]. */
+    fun identifiesModes(
+        possible: List<AbilitySub>,
+        sourceCard: Card,
+        sourceAbility: SpellAbility,
+    ): Boolean {
+        val repository = owner.bridge.cardRepository
+        val childGrpIds =
+            repository
+                .findGrpIdByName(sourceCard.name)
+                ?.let(repository::lookupModalOptions)
+                ?.childGrpIds ?: return false
+        val fullList = sourceAbility.getAdditionalAbilityList("Choices")
+        return possible.withIndex().all { (optionIndex, sub) ->
+            (fullList?.indexOf(sub) ?: optionIndex) in childGrpIds.indices
+        }
+    }
+
     fun capture(
         request: PromptRequest,
         possible: List<AbilitySub>,

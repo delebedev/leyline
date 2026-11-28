@@ -83,6 +83,7 @@ class InteractivePromptBridge(
             runtime = { runtimeBindings.modalChoice },
             prioritySignal = prioritySignal,
             record = ::record,
+            askByLabel = { requestStaticChoice(it) },
         )
 
     /**

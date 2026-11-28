@@ -6,7 +6,13 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.NonInteractiveScope
 import leyline.bridge.types.PrioritySignal
 
-/** Thin engine/session handoff for exact-handle modal requests. */
+/**
+ * Thin engine/session handoff for exact-handle modal requests.
+ *
+ * A choice whose options the client card data does not identify as modes, such as a
+ * repeated [forge.game.ability.ApiType.GenericChoice], cannot be built as a modal
+ * request; [askByLabel] asks it as a named label choice over the option labels instead.
+ */
 internal class ModalChoicePromptAdapter(
     private val timeoutMs: Long?,
     private val strict: Boolean,
@@ -14,6 +20,7 @@ internal class ModalChoicePromptAdapter(
     private val runtime: () -> ModalChoiceInteractionRuntime?,
     private val prioritySignal: PrioritySignal?,
     private val record: (PromptRequest, PromptCallStatus, List<Int>) -> Unit,
+    private val askByLabel: (PromptRequest) -> List<Int>,
 ) {
     fun request(
         request: PromptRequest,
@@ -51,6 +58,10 @@ internal class ModalChoicePromptAdapter(
             return fallback.mapNotNull(possible::getOrNull)
         }
         val modalRuntime = checkNotNull(runtime()) { "ModalChoice runtime is not registered" }
+        // A named label choice selects distinct labels, so a repeatable multi-pick keeps the modal route.
+        if ((!request.allowRepeat || request.max <= 1) && !modalRuntime.identifiesModes(possible, sourceCard, sourceAbility)) {
+            return askByLabel(request.asNamedChoice()).mapNotNull(possible::getOrNull)
+        }
         val result =
             try {
                 modalRuntime.awaitSelection(request, possible, sourceCard, sourceAbility, timeoutMs)
@@ -67,4 +78,13 @@ internal class ModalChoicePromptAdapter(
         if (result.cancelled && !sourceAbility.isTrigger) throw ModalCastCancelledException()
         return result.handles
     }
+
+    private fun PromptRequest.asNamedChoice(): PromptRequest =
+        copy(
+            max = max.coerceAtMost(options.size),
+            allowRepeat = false,
+            route = PromptRouteResolver.resolve(PromptSemantic.NamedChoice),
+            staticList = null,
+            staticOptionIds = options.indices.map { it + 1 },
+        )
 }

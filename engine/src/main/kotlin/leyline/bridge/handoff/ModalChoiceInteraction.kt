@@ -74,6 +74,13 @@ internal data class ModalChoiceAiContext(
 
 /** Engine-thread owner for route-bound modal choices. */
 interface ModalChoiceInteractionRuntime {
+    /** True when the client card data identifies every option in [possible] as a mode of [sourceCard]. */
+    fun identifiesModes(
+        possible: List<AbilitySub>,
+        sourceCard: Card,
+        sourceAbility: SpellAbility,
+    ): Boolean = true
+
     fun awaitSelection(
         request: PromptRequest,
         possible: List<AbilitySub>,

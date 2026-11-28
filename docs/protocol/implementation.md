@@ -1653,7 +1653,14 @@ option or a finite list of numbers, is sent as a `SelectNReq` with
 one `NonLocalizedString` parameter named `Choice` per option, aligned with
 `ids`. The response selects the option by its index.
 
-- Owner: `StaticChoiceWindowMaterializer.buildRequest`, `StaticChoiceWindowCapture`
+A Forge mode choice whose options the client card data does not list as modes
+of the source card uses the same request, labelled by each option's Forge
+description, instead of a modal `CastingTimeOptionsReq`. Each repetition of
+Torment of Hailfire or Rottenmouth Viper asks the player this way whether to
+face the sacrifice or the discard, then asks for that payment. A repeatable
+choice of more than one option keeps the modal request.
+
+- Owner: `StaticChoiceWindowMaterializer.buildRequest`, `StaticChoiceWindowCapture`, `ModalChoicePromptAdapter`
 
 ### Controlled player
 
