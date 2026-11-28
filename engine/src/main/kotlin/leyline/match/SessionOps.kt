@@ -41,12 +41,13 @@ internal data class DrainOutcome(
 /**
  * Deliver committed batches, then release each exact synchronization stop observed at the boundary.
  *
- * Two limits end an automatic drain. A drain that delivers no batch and releases no
- * synchronization stop for [drainTimeoutMs] is stalled. A drain that keeps progressing
- * ends once it has run for [drainTimeoutMs] in total and released at least
- * [drainStopLimit] stops. Total time alone cannot separate unbounded automatic work
- * from a finite chain whose AI decisions are slow on the host, so a progressing chain
- * below the stop limit continues past the total time.
+ * Two limits end a drain that keeps releasing synchronization stops. Once it has released
+ * [drainStopLimit] stops, it fails after [drainTimeoutMs] in total. At any stop count it
+ * fails after [drainCeilingMs]. Total time alone cannot separate unbounded automatic work
+ * from a finite chain whose AI decisions are slow on the host, so a chain below the stop
+ * limit may run past [drainTimeoutMs]. An endless automatic stream therefore holds the
+ * session lock for at most [drainCeilingMs]. A drain whose engine publishes nothing more
+ * returns without failure when one priority wait expires.
  */
 internal fun drainCoordinatorBarrier(
     sink: GreMessageSink,
@@ -56,36 +57,29 @@ internal fun drainCoordinatorBarrier(
     beforeDrain: () -> Unit = {},
     drainTimeoutMs: Long = 180_000L,
     drainStopLimit: Int = 200,
+    drainCeilingMs: Long = 600_000L,
     nowNanos: () -> Long = System::nanoTime,
 ): DrainOutcome {
-    val timeoutNanos = drainTimeoutMs * 1_000_000
-    val totalDeadlineNanos = nowNanos() + timeoutNanos
-    var lastProgressNanos = nowNanos()
+    val startedNanos = nowNanos()
+    val totalDeadlineNanos = startedNanos + drainTimeoutMs * 1_000_000
+    val ceilingDeadlineNanos = startedNanos + drainCeilingMs * 1_000_000
     var releasedStops = 0
     var outcome = DrainOutcome(sent = false)
-    val progressSink =
-        object : GreMessageSink by sink {
-            override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-                sink.sendBundledGRE(messages)
-                lastProgressNanos = nowNanos()
-            }
-        }
 
     fun remainingMs(): Long {
-        val idleDeadlineNanos = lastProgressNanos + timeoutNanos
         val stopLimitReached = releasedStops >= drainStopLimit
-        val deadlineNanos = if (stopLimitReached) minOf(idleDeadlineNanos, totalDeadlineNanos) else idleDeadlineNanos
+        val deadlineNanos = if (stopLimitReached) minOf(totalDeadlineNanos, ceilingDeadlineNanos) else ceilingDeadlineNanos
         val remaining = deadlineNanos - nowNanos()
         if (remaining <= 0) {
-            val reason =
-                if (stopLimitReached && totalDeadlineNanos <= idleDeadlineNanos) {
-                    "limit after $releasedStops synchronization stops"
+            val limit =
+                if (deadlineNanos == ceilingDeadlineNanos) {
+                    "$drainCeilingMs ms ceiling"
                 } else {
-                    "limit without progress"
+                    "$drainTimeoutMs ms limit after $releasedStops synchronization stops"
                 }
             bridge.cutCoordinator.failDrainUnlessVisibleOrGameOver(
                 seatId,
-                TimeoutException("Synchronization drain exceeded its $drainTimeoutMs ms $reason"),
+                TimeoutException("Synchronization drain exceeded its $limit"),
             )
         }
         return (remaining / 1_000_000).coerceAtLeast(1)
@@ -94,7 +88,7 @@ internal fun drainCoordinatorBarrier(
         remainingMs()
         val step =
             drainOneCoordinatorBarrier(
-                sink = progressSink,
+                sink = sink,
                 synchronizationActionId =
                     bridge
                         .takeIf { it.cutCoordinator.committedGameOverOutcome() == null }
@@ -104,12 +98,7 @@ internal fun drainCoordinatorBarrier(
                         ?.actionId,
                 drainCommitted = { bridge.cutCoordinator.drain(seatId) },
                 completeSynchronization = { actionId ->
-                    bridge.actionBridge(seatId).completeSyncPass(actionId).also { released ->
-                        if (released) {
-                            releasedStops++
-                            lastProgressNanos = nowNanos()
-                        }
-                    }
+                    bridge.actionBridge(seatId).completeSyncPass(actionId).also { if (it) releasedStops++ }
                 },
                 awaitNext = {
                     MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) {

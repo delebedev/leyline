@@ -178,18 +178,21 @@ in order, and acknowledges an exact `SYNC_ONLY` barrier only after successful
 delivery. An iterative response that does not release the engine does not wait
 for another horizon.
 
-Each engine horizon retains the configured priority-wait timeout. A continuous
-state-only drain also has two limits, both three minutes:
+Each engine horizon retains the configured priority-wait timeout. A drain whose
+engine publishes nothing more returns without failure when that wait expires,
+and the delivery observer handles any later horizon. A drain that keeps
+releasing synchronization stops has two limits:
 
-- **Idle limit.** The drain fails when three minutes pass without a delivered
-  batch or a released synchronization stop. Each delivery or release renews it,
-  so slow AI decisions on the host do not end a progressing chain, while a
-  stalled drain still ends.
-- **Total limit.** Once the drain has released 200 synchronization stops, it
-  also fails when three minutes have passed since it started. Each automatic
-  resolution or priority pass can be its own stop. A 17-copy storm chain
-  releases about 40 and a combat plus an opponent's whole turn about 70, so 200
-  leaves headroom for long legitimate chains while bounding an endless stream.
+- **Stop-count limit.** Once the drain has released 200 stops, it fails three
+  minutes after it started. Each automatic resolution or priority pass can be
+  its own stop. A 17-copy storm chain releases about 40 and a combat plus an
+  opponent's whole turn about 70, so 200 leaves headroom for long legitimate
+  chains while ending a fast endless stream within three minutes.
+- **Ceiling.** At any stop count, the drain fails ten minutes after it started.
+  A finite chain whose AI decisions are slow on the host stays below the stop
+  count and may run past three minutes. A 17-copy storm chain at about 15 s per
+  copy takes four to five minutes. An endless slow stream holds the session
+  lock for at most ten minutes.
 
 Exhaustion fails the existing cut coordinator and wakes its action and prompt
 waiters, so an automatic stream cannot retain the session lock indefinitely.
