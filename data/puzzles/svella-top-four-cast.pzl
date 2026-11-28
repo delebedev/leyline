@@ -1,0 +1,25 @@
+# Design Narrative
+# Mechanic: Svella, Ice Shaper's second ability looks at the top four cards and may cast a spell from among them without paying its mana cost.
+# Forcing: eight untapped lands pay {6}{R}{G}; the top four hold two castable spells, so the controller chooses between them or declines.
+# AI behavior: The opponent has no permanents or hand, so it makes no decisions.
+# Card roles:
+#   Svella, Ice Shaper — the activated ability under test.
+#   Llanowar Elves, Grizzly Bears — the two spells offered from the top four.
+#   Forest, Forest — the lands that stay in the library.
+# Protocol path: activation, resolution, card choice among library cards, free cast, rest to the bottom.
+
+[metadata]
+Name:Svella Top Four Cast
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Activate Svella's second ability and cast one of the revealed spells for free.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Svella, Ice Shaper;Mountain;Mountain;Mountain;Mountain;Forest;Forest;Forest;Forest
+humanlibrary=Llanowar Elves;Grizzly Bears;Forest;Forest;Island;Island
+ailibrary=Island;Island;Island
