@@ -27,7 +27,11 @@ internal class ModalChoiceWindowCapture(
     /**
      * True when the source card's client modal ability lists one mode per option of
      * [sourceAbility]. The repository answers with the card's first modal ability, so a
-     * list of another length belongs to a different ability of the same card.
+     * list of another length belongs to a different ability of the same card. Against the
+     * Forge catalog, every client card with modal rows has a Forge choice list of that exact
+     * length, and the only prompting choice that differs is another ability's choice.
+     * Limitation: a different choice on the same card with the same option count is still
+     * taken as identified, because the client rows are not matched to the Forge ability.
      */
     fun identifiesModes(
         possible: List<AbilitySub>,

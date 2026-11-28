@@ -80,6 +80,7 @@ class ModalChoicePromptAdapterTest :
             timeoutMs: Long? = null,
             mayCancel: Boolean = true,
             waits: MutableList<Long?> = mutableListOf(),
+            recorded: MutableList<List<Int>> = mutableListOf(),
             answer: (PromptRequest) -> List<Int>,
         ) = ModalChoicePromptAdapter(
             timeoutMs = timeoutMs,
@@ -108,7 +109,7 @@ class ModalChoicePromptAdapterTest :
                 }
             },
             prioritySignal = null,
-            record = { _, status, _ -> records += status },
+            record = { _, status, indices -> records += status.also { recorded += indices } },
             labelRuntime = {
                 object : StaticChoiceInteractionRuntime {
                     override fun shownOptions(request: PromptRequest) = request.options.indices.toList()
@@ -210,15 +211,37 @@ class ModalChoicePromptAdapterTest :
 
         test("a timed-out repeated pick defaults the remaining required picks without asking again") {
             val records = mutableListOf<PromptCallStatus>()
+            val recorded = mutableListOf<List<Int>>()
             val choices = listOf(handle(), handle())
 
             val result =
-                labelAdapter(records, timeoutMs = 1_000) { throw StaticChoiceInteractionTimeoutException() }
+                labelAdapter(records, timeoutMs = 1_000, recorded = recorded) { throw StaticChoiceInteractionTimeoutException() }
                     .request(request().copy(min = 2, max = 3, allowRepeat = true), choices, choices[0].hostCard, choices[0])
 
             assertSoftly {
                 result shouldBe listOf(choices[0], choices[0])
                 records shouldBe listOf(PromptCallStatus.TIMEOUT)
+                recorded shouldBe listOf(listOf(0, 0))
+            }
+        }
+
+        test("an exhausted shared deadline records the defaulted picks as a timeout") {
+            val records = mutableListOf<PromptCallStatus>()
+            val recorded = mutableListOf<List<Int>>()
+            val choices = listOf(handle(), handle())
+
+            val result =
+                labelAdapter(records, timeoutMs = 5, recorded = recorded) {
+                    // Answer after the shared deadline has passed.
+                    val answeredAt = System.nanoTime() + 20_000_000
+                    while (System.nanoTime() < answeredAt) Thread.onSpinWait()
+                    listOf(1)
+                }.request(request().copy(min = 3, max = 3, allowRepeat = true), choices, choices[0].hostCard, choices[0])
+
+            assertSoftly {
+                result shouldBe listOf(choices[1], choices[0], choices[0])
+                records shouldBe listOf(PromptCallStatus.RESPONDED, PromptCallStatus.TIMEOUT)
+                recorded shouldBe listOf(listOf(1), listOf(0, 0))
             }
         }
 

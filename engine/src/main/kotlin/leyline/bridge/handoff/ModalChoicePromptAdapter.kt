@@ -104,14 +104,17 @@ internal class ModalChoicePromptAdapter(
         while (picks.size < request.max) {
             val required = if (picks.size < request.min) 1 else 0
             val remainingMs = deadline?.let { TimeUnit.NANOSECONDS.toMillis(it - System.nanoTime()) }
+            val defaults = fallback.firstOrNull()?.let { index -> List((request.min - picks.size).coerceAtLeast(0)) { index } }.orEmpty()
             val pick =
                 if (remainingMs != null && remainingMs <= 0) {
+                    record(request, PromptCallStatus.TIMEOUT, defaults)
+                    prioritySignal?.signal()
                     null
                 } else {
-                    askByLabel(request.asNamedChoice(required, 1, cancellable), fallback.take(required), remainingMs)
+                    askByLabel(request.asNamedChoice(required, 1, cancellable), defaults, remainingMs)
                 }
             if (pick == null) {
-                fallback.firstOrNull()?.let { index -> repeat((request.min - picks.size).coerceAtLeast(0)) { picks += index } }
+                picks += defaults
                 break
             }
             if (pick.isEmpty()) break
