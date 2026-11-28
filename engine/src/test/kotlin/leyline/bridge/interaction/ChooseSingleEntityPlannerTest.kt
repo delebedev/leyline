@@ -113,8 +113,8 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
-        test("Play over exact library Card candidates selects the library choice") {
-            val plan = planFor(playSa(), isOptional = true, candidateRefs = libraryRefs)
+        test("Play over library cards its ability identified selects the library choice") {
+            val plan = planFor(playSa(mapOf("Valid" to "Card.IsRemembered+nonLand")), isOptional = true, candidateRefs = libraryRefs)
 
             assertSoftly(plan) {
                 routePolicy shouldBe ChooseSingleEntityRoutePolicy.Prompt
@@ -124,6 +124,20 @@ class ChooseSingleEntityPlannerTest :
                 resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe true
                 candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
                 sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+            }
+        }
+
+        test("Play identifies its library cards through Defined or remembered and imprinted filters only") {
+            fun shape(params: Map<String, String>) =
+                planFor(playSa(params), isOptional = true, candidateRefs = libraryRefs).resolutionRouteInput?.abilityShape
+
+            assertSoftly {
+                shape(mapOf("Defined" to "Imprinted")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Valid" to "Card.IsImprinted")) shouldBe ResolutionAbilityShape.LibraryChoice
+                shape(mapOf("Valid" to "Instant,Sorcery")) shouldBe ResolutionAbilityShape.Other
+                planFor(playSa(mapOf("Valid" to "Instant,Sorcery")), isOptional = true, candidateRefs = libraryRefs)
+                    .resolutionRouteInput
+                    ?.isHiddenLibraryCardChoice shouldBe false
             }
         }
 
@@ -214,7 +228,7 @@ private fun genericSa(): SpellAbility = abilitySub(ApiType.ChooseCard)
 
 private fun digSa(): SpellAbility = abilitySub(ApiType.Dig)
 
-private fun playSa(): SpellAbility = abilitySub(ApiType.Play)
+private fun playSa(params: Map<String, String>): SpellAbility = abilitySub(ApiType.Play, params)
 
 private fun abilitySub(
     api: ApiType,

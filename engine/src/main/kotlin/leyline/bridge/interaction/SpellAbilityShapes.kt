@@ -24,6 +24,17 @@ object SpellAbilityShapes {
             ability.hostCard.oracleText.contains("look at", ignoreCase = true)
     }
 
+    /**
+     * A play effect whose candidates are cards an earlier step of the same ability identified:
+     * the cards it defines, or its valid cards narrowed to what that step remembered or imprinted
+     * (Svella, Ice Shaper's top four). A play effect filtering a whole zone by type is not one.
+     */
+    fun playsCardsItIdentified(sa: SpellAbility?): Boolean =
+        sa?.api == ApiType.Play &&
+            (sa.hasParam("Defined") || sa.getParam("Valid")?.let(IDENTIFIED_CARDS::containsMatchIn) == true)
+
+    private val IDENTIFIED_CARDS = Regex("""\bIs(Remembered|Imprinted)\b""")
+
     fun usesCostOnlyCastingOption(sa: SpellAbility?): Boolean =
         (sa?.alternativeCost ?: sa?.rootAbility?.alternativeCost) in
             setOf(AlternativeCost.Warp, AlternativeCost.Foretold, AlternativeCost.Evoke)

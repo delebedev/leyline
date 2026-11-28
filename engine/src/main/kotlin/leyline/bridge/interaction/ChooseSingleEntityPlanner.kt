@@ -117,11 +117,10 @@ object ChooseSingleEntityPlanner {
         )
     }
 
-    /** Play over library cards picks a spell to cast from cards its effect shows the chooser. */
     private fun abilityShape(sa: SpellAbility?): ResolutionAbilityShape =
         when {
             sa?.api == ApiType.Dig -> ResolutionAbilityShape.Dig
-            sa?.api == ApiType.Play -> ResolutionAbilityShape.LibraryChoice
+            SpellAbilityShapes.playsCardsItIdentified(sa) -> ResolutionAbilityShape.LibraryChoice
             else -> ResolutionAbilityShape.Other
         }
 }

@@ -5,7 +5,8 @@
 # Card roles:
 #   Svella, Ice Shaper — the activated ability under test.
 #   Llanowar Elves, Grizzly Bears — the two spells offered from the top four.
-#   Forest, Forest — the lands that stay in the library.
+#   Forest, Forest — the non-spell cards of the top four, which go to the bottom.
+#   Island, Island — filler below the top four.
 # Protocol path: activation, resolution, card choice among library cards, free cast, rest to the bottom.
 
 [metadata]

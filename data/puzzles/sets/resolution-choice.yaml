@@ -61,7 +61,7 @@ scenarios:
     expect: both revealed spells are offered, and the chosen one is cast for free
     steps:
       - activate: { card: "Svella, Ice Shaper", ability_index: 1 }
-      - pass_until: { prompt: SelectNReq, max_passes: 8 }
+      - pass_until: { prompt: { type: SelectNReq, prompt_id: 2428 }, max_passes: 8 }
       - select_card: { side: ours, zone: library, card: Grizzly Bears }
       - optional_action: { accept: true }
       - resolve_stack: {}
@@ -77,11 +77,11 @@ scenarios:
     expect: the revealed spells stay in the library and resolution completes
     steps:
       - activate: { card: "Svella, Ice Shaper", ability_index: 1 }
-      - pass_until: { prompt: SelectNReq, max_passes: 8 }
+      - pass_until: { prompt: { type: SelectNReq, prompt_id: 2428 }, max_passes: 8 }
       - select_cards: { zone: library, cards: [] }
       - resolve_stack: {}
       - expect:
           all:
-            - zone_not_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
-            - zone_not_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+            - zone_contains: { side: ours, zone: library, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: library, card: Llanowar Elves }
             - stack_empty: true

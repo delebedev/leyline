@@ -278,4 +278,34 @@ class EffectCardChoiceTest :
                 }
             }
         }
+
+        session(
+            "Talent of the Telepath casts a chosen spell from the opponent's revealed cards",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Talent of the Telepath
+                humanbattlefield=Island;Island;Island;Island
+                humanlibrary=Island;Island;Island
+                ailibrary=Divination;Opt;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+            """,
+        ) {
+            castSpellUntilSelectTargetsReq("Talent of the Telepath")
+            selectTargets(listOf(2))
+            passUntil { allMessages.any { it.hasSelectNReq() } }
+            val req = lastSelectNReq()
+            val offered = req.idsList.associateBy { cardByIid(it)?.name }
+            offered.keys shouldBe setOf("Divination", "Opt")
+            holdNextOptionalAction()
+            respondToSelectN(listOf(offered.getValue("Divination")))
+            passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
+            respondToOptionalAction(true)
+            passUntilResolved()
+            assertSoftly {
+                "Divination" should beInZoneOf(ZoneType.Graveyard, ai)
+                human.getZone(ZoneType.Hand).cards.size shouldBe 2
+            }
+        }
     })
