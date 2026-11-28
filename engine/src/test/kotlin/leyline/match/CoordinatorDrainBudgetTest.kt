@@ -100,8 +100,9 @@ class CoordinatorDrainBudgetTest :
             }
         }
 
-        // Fake steps are scaled to seconds so every remaining budget exceeds priorityWaitMs:
-        // each real horizon wait stays at priorityWaitMs whatever the fake clock reads.
+        // In this test and the ceiling test, fake steps are scaled to seconds so every remaining
+        // budget the drain waits on strictly exceeds priorityWaitMs: each real horizon wait stays
+        // at priorityWaitMs whatever the fake clock reads.
         test("a slow synchronization chain below the stop limit continues past the total drain time") {
             val board = startWithBoard { _, _, _ -> }
             val bridge = board.bridge
@@ -150,7 +151,7 @@ class CoordinatorDrainBudgetTest :
             val board = startWithBoard { _, _, _ -> }
             val bridge = board.bridge
             bridge.cutCoordinator.registerViewer(SeatId(1))
-            bridge.priorityWaitMs = 10_000
+            bridge.priorityWaitMs = 5_000
             val clock = AtomicLong()
             val engine =
                 Thread {
