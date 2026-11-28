@@ -287,6 +287,33 @@ simclient *args="--ingest-scry":
     if [ -d "$src" ]; then trash "$src"; fi
     ./gradlew :engine:simclient --args="{{args}}"
 
+# Compare offered plays with Forge's ability enumeration, one state per card
+# and zone. Prefer --cards-file for names with spaces or commas.
+#
+# Examples:
+#   just offer-diff-pool --cards-file cards.txt
+#   just offer-diff-pool --cards-file cards.txt --zones hand,graveyard --card-catalog forge
+#   just offer-diff-pool --cards "Brightclimb Pathway;Jack-o'-Lantern"
+#
+# Output: engine/build/offer-diff-pool/results.jsonl + summary.json.
+[group('simclient')]
+[positional-arguments]
+offer-diff-pool *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Gradle's --args splitter honours single and double quotes but no escapes, so each argument is wrapped
+    # in whichever quote it does not contain; card names with apostrophes use double quotes.
+    quoted=""
+    for arg in "$@"; do
+        if [[ "$arg" == *\"* ]]; then
+            if [[ "$arg" == *"'"* ]]; then echo "offer-diff-pool: argument has both quote kinds: $arg" >&2; exit 2; fi
+            quoted+=" '$arg'"
+        else
+            quoted+=" \"$arg\""
+        fi
+    done
+    ./gradlew :engine:offerDiffPool --args="$quoted"
+
 # --- Serve ---
 
 # default dev mode: local FD + local MD. Ports and paths come from leyline.toml
