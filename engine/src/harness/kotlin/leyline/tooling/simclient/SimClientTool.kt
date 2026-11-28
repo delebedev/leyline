@@ -379,6 +379,12 @@ class SimClientRunner internal constructor(
         println("abilityLookups: ${lookups.bySource.values.sum()} resolved, ${lookups.misses.values.sum()} missed")
         lookups.bySource.forEach { (key, count) -> println("  resolved $key = $count") }
         lookups.misses.forEach { (key, count) -> println("  missed $key = $count") }
+        println(
+            "abilityRowMismatches: ${lookups.rowMismatches.values.sum()} in ${rows.count {
+                it.stats.abilityRowMismatches.isNotEmpty()
+            }} row(s)",
+        )
+        lookups.rowMismatches.forEach { (key, count) -> println("  $key = $count") }
     }
 
     private fun automaticAnswerTotals(rows: List<SimClientRowResult>): Map<String, Int> =

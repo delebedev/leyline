@@ -19,15 +19,19 @@ import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.game.InMemoryCardRepository
 import leyline.game.codes.SlotKind
+import leyline.game.data.AbilityInfo
 import leyline.game.data.CardData
 import leyline.game.data.ForgeCardRepository
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.data.catalogKeywords
 import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ActivatedActionEmitter
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
+import leyline.testkit.TestCardInjector
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 
@@ -280,4 +284,164 @@ class AbilityRegistryKeywordTest :
                 registry.forSpellAbility(granted) shouldBe expectedGrant
             }
         }
-    })
+
+        test("intrinsic keywords take the catalog row that names the same keyword wherever the catalog puts it") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val emrakul = TestCardInjector.inject(bridge, 2, "Emrakul, the Aeons Torn", ZoneType.Battlefield).card
+            val repository = emrakulCatalog()
+            val data = checkNotNull(repository.findByGrpId(EMRAKUL_GRP_ID))
+            val annihilator =
+                emrakul
+                    .getKeywords()
+                    .single { it.keyword == Keyword.ANNIHILATOR }
+                    .triggers
+                    .single()
+            val printedTriggers = emrakul.triggers.filter { it.isIntrinsic && it.keyword == null }
+            val registry = AbilityRegistry.build(emrakul, data, rowKeywords = repository::catalogKeywords)
+
+            assertSoftly {
+                registry.forTrigger(annihilator.definitionId) shouldBe ANNIHILATOR_SIX_ROW
+                printedTriggers shouldHaveSize 2
+                printedTriggers.map { registry.forTrigger(it.definitionId) }.toSet() shouldBe setOf(15698, 1330)
+            }
+        }
+
+        test("the row check counts Annihilator on Flying's row, where positional keyword rows put it") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val emrakul = TestCardInjector.inject(bridge, 2, "Emrakul, the Aeons Torn", ZoneType.Battlefield).card
+            val repository = emrakulCatalog()
+            val annihilator =
+                emrakul
+                    .getKeywords()
+                    .single { it.keyword == Keyword.ANNIHILATOR }
+                    .triggers
+                    .single()
+            val ability = annihilator.ensureAbility().also { it.trigger = annihilator }
+            val ledger = AbilityIdentityLedger(RowAgreement(repository))
+
+            ledger.checkRow(AbilityIdentityLedger.Site.Trigger, ability, FLYING_ROW)
+            ledger.checkRow(AbilityIdentityLedger.Site.Trigger, ability, ANNIHILATOR_SIX_ROW)
+
+            assertSoftly {
+                ledger.rowMismatches() shouldBe mapOf("trigger/Emrakul, the Aeons Torn: Annihilator keyword on row $FLYING_ROW" to 1)
+            }
+        }
+
+        test("a keyword the catalog does not name skips a printed trigger row in its declaration position") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val sojourners = TestCardInjector.inject(bridge, 1, "Grixis Sojourners", ZoneType.Hand).card
+            val rows = listOf(TRIGGER_ROW to 2, SECOND_TRIGGER_ROW to 2, CYCLING_ROW to 1)
+            val data = catalogCard(SOJOURNERS_GRP_ID, rows)
+            val cycling =
+                sojourners
+                    .getKeywords()
+                    .single { it.keyword == Keyword.CYCLING }
+                    .abilities
+                    .single()
+            val ledger = AbilityIdentityLedger()
+            val registry = AbilityRegistry.build(sojourners, data, ledger = ledger)
+            val identity = AbilityRegistry.resolveActivated(sojourners, cycling, { data }, { _, _ -> registry })
+
+            assertSoftly {
+                sojourners.triggers.filter { it.isIntrinsic }.map { registry.forTrigger(it.definitionId) } shouldBe
+                    listOf(TRIGGER_ROW, SECOND_TRIGGER_ROW)
+                identity.abilityGrpId shouldBe CYCLING_ROW
+                identity.uniqueAbilityId shouldBe 52
+                ledger.missedByReason() shouldBe mapOf("keyword-slot/no-row" to 1)
+            }
+        }
+
+        test("a keyword left without a row does not take the printed trigger's row") {
+            val board = startWithBoard { _, _, _ -> }
+            val rules =
+                CardRules.Reader().readCard(
+                    listOf(
+                        "Name:Unnamed Prowler",
+                        "ManaCost:1",
+                        "Types:Creature Human",
+                        "PT:1/1",
+                        "K:Prowess",
+                        "A:AB$ Pump | Cost$ 1 | Defined$ Self | NumAtt$ +1 | SpellDescription$ CARDNAME gets +1/+0.",
+                        "T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Card.Self | Execute$ TrigGain | " +
+                            "TriggerDescription$ When CARDNAME enters, you gain 1 life.",
+                        "SVar:TrigGain:DB$ GainLife | LifeAmount$ 1",
+                    ),
+                )
+            val card = Card.fromPaperCard(PaperCard(rules, "TST", CardRarity.Common), board.human)
+            val data = catalogCard(PROWLER_GRP_ID, listOf(ACTIVATED_ROW to 1, TRIGGER_ROW to 2))
+            val prowess =
+                card
+                    .getKeywords()
+                    .single { it.keyword == Keyword.PROWESS }
+                    .triggers
+                    .single()
+            val printed = card.triggers.single { it.isIntrinsic && it.definitionId != prowess.definitionId }
+            val ledger = AbilityIdentityLedger()
+
+            val registry = AbilityRegistry.build(card, data, ledger = ledger)
+
+            assertSoftly {
+                registry.forTrigger(printed.definitionId) shouldBe TRIGGER_ROW
+                ledger.missedByReason() shouldBe mapOf("keyword-slot/no-row" to 1)
+            }
+        }
+    }) {
+    private companion object {
+        const val EMRAKUL_GRP_ID = 51281
+        const val FLYING_ROW = 8
+        const val ANNIHILATOR_SIX_ROW = 15700
+        const val SOJOURNERS_GRP_ID = 9100
+        const val TRIGGER_ROW = 9101
+        const val SECOND_TRIGGER_ROW = 9102
+        const val CYCLING_ROW = 9103
+        const val PROWLER_GRP_ID = 9200
+        const val ACTIVATED_ROW = 9201
+
+        fun catalogCard(
+            grpId: Int,
+            rows: List<Pair<Int, Int>>,
+        ) = CardData(
+            grpId = grpId,
+            titleId = 0,
+            power = "",
+            toughness = "",
+            colors = emptyList(),
+            types = emptyList(),
+            subtypes = emptyList(),
+            supertypes = emptyList(),
+            manaCost = emptyList(),
+            abilityIds = rows.map { it.first to 0 },
+            abilityKinds = rows.map { SlotKind.fromCategory(it.second) },
+            abilityCategories = rows.map { it.second },
+        )
+
+        /**
+         * Emrakul's catalog shape: its keywords sit between its triggers and statics, and Annihilator and
+         * Protection chain to their keyword base rows.
+         */
+        fun emrakulCatalog(): InMemoryCardRepository {
+            val rows = listOf(138085 to 3, 15698 to 2, FLYING_ROW to 3, 381 to 3, ANNIHILATOR_SIX_ROW to 2, 1330 to 2)
+            val bases = mapOf(381 to 21, ANNIHILATOR_SIX_ROW to 87)
+            return InMemoryCardRepository().apply {
+                registerData(
+                    CardData(
+                        grpId = EMRAKUL_GRP_ID,
+                        titleId = 0,
+                        power = "15",
+                        toughness = "15",
+                        colors = emptyList(),
+                        types = emptyList(),
+                        subtypes = emptyList(),
+                        supertypes = emptyList(),
+                        manaCost = emptyList(),
+                        abilityIds = rows.map { it.first to 0 },
+                        abilityKinds = rows.map { SlotKind.fromCategory(it.second) },
+                        abilityCategories = rows.map { it.second },
+                    ),
+                    "Emrakul, the Aeons Torn",
+                )
+                rows.forEach { (id, category) -> registerAbilityInfo(id, AbilityInfo(bases[id] ?: 0, emptyList(), category)) }
+            }
+        }
+    }
+}

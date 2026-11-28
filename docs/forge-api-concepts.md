@@ -217,8 +217,10 @@ handles for actions that have none.
 Activated abilities come from the card's current state. An ability on another
 transforming face is neither active nor inactive on the current face. Explicit
 special actions such as turning a face-down card face up retain their own lookup.
-Intrinsic keyword slots follow the active face's declared keyword order, including
-the declaration source of copied states. Repeated intrinsic keywords bind one live
+An intrinsic keyword binds to the catalog row that names the same keyword, by the
+row's own id, its keyword base id or its localization; only a row that names no
+keyword binds by the active face's declared keyword order, including the
+declaration source of copied states. Repeated intrinsic keywords bind one live
 occurrence per declaration slot. Exact definitions bind before any unambiguous
 keyword-family fallback, so one declaration cannot consume a sibling's identity.
 Repeated catalog rows retain their declaration-local `uniqueAbilityId` only while

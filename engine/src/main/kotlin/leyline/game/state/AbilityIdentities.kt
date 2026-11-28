@@ -12,6 +12,7 @@ import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SelectedAdditionalCost
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
+import leyline.game.data.catalogKeywords
 import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.data.lookupGrantedKeywordAbility
 import java.util.concurrent.ConcurrentHashMap
@@ -27,7 +28,7 @@ class AbilityIdentities(
     private val cardRepository: CardRepository,
     private val cardData: (Card) -> CardData?,
 ) {
-    val ledger = AbilityIdentityLedger()
+    val ledger = AbilityIdentityLedger(RowAgreement(cardRepository))
 
     private val registries = ConcurrentHashMap<Int, AbilityRegistry>()
     private val grantedAbilityIds = ConcurrentHashMap<Int, GrantedAbilityIds>()
@@ -101,6 +102,7 @@ class AbilityIdentities(
             cardRepository::grantedKeywordAbilityGrpId,
             grantedAbilityIds.computeIfAbsent(card.id) { GrantedAbilityIds() },
             ledger,
+            cardRepository::catalogKeywords,
         )
 
     private fun rebuildRegistry(
@@ -116,7 +118,16 @@ class AbilityIdentities(
         ability: SpellAbility,
     ): AbilityLookup<ResolvedAbilityIdentity> {
         val trigger = ability.trigger ?: return AbilityRegistry.lookupSpellAbility(ability, cardData, ::registryFor)
-        return ledger.record(AbilityIdentityLedger.Site.Trigger, lookupTrigger(card, trigger))
+        val lookup = ledger.record(AbilityIdentityLedger.Site.Trigger, lookupTrigger(card, trigger))
+        (lookup as? AbilityLookup.Resolved)?.let {
+            ledger.checkRow(
+                AbilityIdentityLedger.Site.Trigger,
+                ability,
+                it.value.abilityGrpId,
+                it.via,
+            )
+        }
+        return lookup
     }
 
     /**

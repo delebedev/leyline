@@ -1,6 +1,9 @@
 package leyline.game.state
 
+import forge.game.spellability.SpellAbility
+import leyline.bridge.types.AbilityIdentitySource
 import leyline.bridge.types.AbilityLookup
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -11,7 +14,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * Counts are per call: a projection that looks the same ability up twice counts twice. A site that delegates
  * to another site counts both, under each site's own key.
  */
-class AbilityIdentityLedger {
+class AbilityIdentityLedger(
+    private val rowAgreement: RowAgreement? = null,
+) {
     /** Where an identity lookup happens. */
     enum class Site(
         val label: String,
@@ -40,6 +45,9 @@ class AbilityIdentityLedger {
         /** An activated offer's row and occurrence. */
         Activated("activated"),
 
+        /** An intrinsic keyword declaration's catalog row while a registry is built. */
+        KeywordSlot("keyword-slot"),
+
         /** A granted keyword's row read while translating a Forge game event. */
         Event("event"),
 
@@ -58,6 +66,7 @@ class AbilityIdentityLedger {
 
     private val resolved = ConcurrentHashMap<String, AtomicInteger>()
     private val missed = ConcurrentHashMap<String, AtomicInteger>()
+    private val mismatches = ConcurrentHashMap<String, AtomicInteger>()
 
     fun <T> record(
         site: Site,
@@ -70,18 +79,35 @@ class AbilityIdentityLedger {
         return lookup
     }
 
+    /** Count a resolved [row] that does not describe [ability]; see [RowAgreement]. */
+    fun checkRow(
+        site: Site,
+        ability: SpellAbility,
+        row: Int,
+        via: AbilityIdentitySource? = null,
+    ) {
+        val disagreement = rowAgreement?.disagreement(ability, row, via) ?: return
+        val source = ability.hostCard?.name ?: "unknown source"
+        if (increment(mismatches, "${site.label}/$source: $disagreement") == 1) {
+            log.warn("Ability row disagrees with its Forge ability at {}: {}: {}", site.label, source, disagreement)
+        }
+    }
+
     /** Resolved lookups keyed `site/source`. */
     fun resolvedBySource(): Map<String, Int> = resolved.snapshot()
 
     /** Missed lookups keyed `site/reason`. */
     fun missedByReason(): Map<String, Int> = missed.snapshot()
 
+    /** Resolved rows that disagree with their Forge ability, keyed `site/card: disagreement`. */
+    fun rowMismatches(): Map<String, Int> = mismatches.snapshot()
+
     private fun increment(
         counts: ConcurrentHashMap<String, AtomicInteger>,
         key: String,
-    ) {
-        counts.computeIfAbsent(key) { AtomicInteger() }.incrementAndGet()
-    }
+    ): Int = counts.computeIfAbsent(key) { AtomicInteger() }.incrementAndGet()
 
     private fun ConcurrentHashMap<String, AtomicInteger>.snapshot(): Map<String, Int> = mapValues { it.value.get() }.toSortedMap()
 }
+
+private val log = LoggerFactory.getLogger(AbilityIdentityLedger::class.java)
