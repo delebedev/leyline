@@ -19,9 +19,15 @@ fun main(args: Array<String>) {
 
 internal object CardPoolOfferDiffTool {
     fun run(args: List<String>): Int {
-        val options = parse(args) ?: return 2
+        val options =
+            try {
+                parse(args) ?: return 0
+            } catch (ex: IllegalArgumentException) {
+                return usageError(ex)
+            } catch (ex: IllegalStateException) {
+                return usageError(ex)
+            }
         val cards = options.cards
-        require(cards.isNotEmpty()) { "no cards given: use --cards or --cards-file" }
         options.outDir.mkdirs()
         val repository = openSimClientCardRepository(options.catalog, System.getenv("LEYLINE_CARD_DB"))
         val pool = CardPoolOfferDiff(repository, options.zones)
@@ -40,6 +46,12 @@ internal object CardPoolOfferDiffTool {
         return 0
     }
 
+    private fun usageError(ex: RuntimeException): Int {
+        System.err.println("offer-diff-pool: ${ex.message}")
+        System.err.println(USAGE)
+        return 2
+    }
+
     private data class Options(
         val cards: List<String>,
         val zones: List<ZoneType>,
@@ -54,25 +66,38 @@ internal object CardPoolOfferDiffTool {
         var outDir = File("engine/build/offer-diff-pool")
         var i = 0
         while (i < args.size) {
-            val value = { args.getOrNull(i + 1) ?: error("missing value for ${args[i]}") }
+            val value = { requireNotNull(args.getOrNull(i + 1)) { "missing value for ${args[i]}" } }
             when (args[i]) {
                 "--cards" -> cards = cards + value().split(";").map { it.trim() }.filter { it.isNotEmpty() }
                 "--cards-file" ->
-                    cards = cards +
-                        File(value()).readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-                "--zones" -> zones = value().split(",").map { ZoneType.smartValueOf(it.trim()) }
+                    cards = cards + readCardsFile(File(value()))
+                "--zones" -> zones = parseZones(value())
                 "--card-catalog" -> catalog = SimClientCardCatalog.parse(value())
                 "--out-dir" -> outDir = File(value())
                 "--help", "-h" -> {
                     println(USAGE)
                     return null
                 }
-                else -> error("unknown argument: ${args[i]}")
+                else -> throw IllegalArgumentException("unknown argument: ${args[i]}")
             }
             i += 2
         }
+        require(cards.isNotEmpty()) { "no cards given: use --cards or --cards-file" }
         return Options(cards.distinct(), zones, catalog, outDir)
     }
+
+    private fun readCardsFile(file: File): List<String> {
+        require(file.isFile) { "no such cards file: $file" }
+        return file.readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+    }
+
+    private fun parseZones(value: String): List<ZoneType> =
+        value.split(",").map { name ->
+            CardPoolOfferDiff.DEFAULT_ZONES.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
+                ?: throw IllegalArgumentException(
+                    "unsupported zone: $name; use ${CardPoolOfferDiff.DEFAULT_ZONES.joinToString(",") { it.name.lowercase() }}",
+                )
+        }
 
     private fun resultToJson(result: CardPoolOfferDiff.ZoneResult): String =
         buildString {
@@ -95,7 +120,11 @@ internal object CardPoolOfferDiffTool {
         }
 
     private fun cardVerdicts(results: List<CardPoolOfferDiff.ZoneResult>): Map<String, CardPoolOfferDiff.Verdict> =
-        results.groupBy { it.card }.mapValues { (_, zones) -> zones.minOf { it.verdict } }
+        results.groupBy { it.card }.mapValues { (_, zones) ->
+            // An errored zone does not hide what the card's other zones found.
+            zones.map { it.verdict }.filter { it != CardPoolOfferDiff.Verdict.Error }.minOrNull()
+                ?: CardPoolOfferDiff.Verdict.Error
+        }
 
     /** Unnamed differences on the cards under test, by bucket and Forge API type. */
     private fun gapsByBucketAndApi(results: List<CardPoolOfferDiff.ZoneResult>): Map<String, Int> =
@@ -122,6 +151,7 @@ internal object CardPoolOfferDiffTool {
             append('{')
             append("\"cards\":${cards.size},")
             append("\"states\":${results.size},")
+            append("\"erroredStates\":${results.count { it.verdict == CardPoolOfferDiff.Verdict.Error }},")
             append("\"zones\":${options.zones.joinToString(",", "[", "]") { simJsonString(it.name) }},")
             append("\"catalog\":${simJsonString(options.catalog.name)},")
             append("\"elapsedMs\":$elapsedMs,")
@@ -152,7 +182,10 @@ internal object CardPoolOfferDiffTool {
     ) {
         val verdicts = cardVerdicts(results)
         println("\n=== offer diff card pool ===")
-        println("cards: ${cards.size} states: ${results.size} elapsedMs: $elapsedMs")
+        println(
+            "cards: ${cards.size} states: ${results.size} " +
+                "errored states: ${results.count { it.verdict == CardPoolOfferDiff.Verdict.Error }} elapsedMs: $elapsedMs",
+        )
         println(
             "covered cards (a play beyond the base cast): ${results.filter { it.extraPlays.isNotEmpty() }.map { it.card }.toSet().size}",
         )

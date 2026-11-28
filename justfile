@@ -293,11 +293,18 @@ simclient *args="--ingest-scry":
 # Examples:
 #   just offer-diff-pool --cards-file cards.txt
 #   just offer-diff-pool --cards-file cards.txt --zones hand,graveyard --card-catalog forge
+#   just offer-diff-pool --cards "Brightclimb Pathway;Jack-o'-Lantern"
 #
 # Output: engine/build/offer-diff-pool/results.jsonl + summary.json.
 [group('simclient')]
+[positional-arguments]
 offer-diff-pool *args:
-    ./gradlew :engine:offerDiffPool --args="{{args}}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Quote each argument so card names with spaces reach the tool intact.
+    quoted=""
+    for arg in "$@"; do quoted+=" \"$arg\""; done
+    ./gradlew :engine:offerDiffPool --args="$quoted"
 
 # --- Serve ---
 
