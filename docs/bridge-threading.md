@@ -179,11 +179,14 @@ delivery. An iterative response that does not release the engine does not wait
 for another horizon.
 
 Each engine horizon retains the configured priority-wait timeout. A continuous
-state-only drain also has a three-minute total limit. Publishing more state does not renew
-the total limit. Exhaustion fails the existing cut coordinator and wakes its
-action and prompt waiters, so an automatic stream cannot retain the session
-lock indefinitely. A visible player-choice window ends the drain and keeps
-its own interaction lifetime.
+state-only drain also has a total limit: it fails once it has run for three
+minutes and released at least 200 synchronization stops. Publishing more state
+does not renew the limit. A finite chain whose AI decisions are slow on the
+host, such as a resolving storm copy chain or an opponent's whole turn, stays
+below the stop count and continues past three minutes. Exhaustion fails the
+existing cut coordinator and wakes its action and prompt waiters, so an
+automatic stream cannot retain the session lock indefinitely. A visible
+player-choice window ends the drain and keeps its own interaction lifetime.
 
 The total limit is containment for unbounded automatic work, including work
 that keeps changing state. It does not identify a rules-engine cause. A

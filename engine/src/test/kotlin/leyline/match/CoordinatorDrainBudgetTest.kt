@@ -4,6 +4,7 @@ import forge.game.GameStage
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.BlockingInteraction
@@ -41,7 +42,7 @@ class CoordinatorDrainBudgetTest :
             bridge.awaitPriorityWithTimeout(1_000) shouldBe true
             val receiver =
                 Thread {
-                    runCatching { drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 50) }
+                    runCatching { drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 50, drainStopLimit = 5) }
                         .onFailure(receiverFailure::set)
                     receiverDone.countDown()
                 }.also { it.start() }
@@ -52,7 +53,7 @@ class CoordinatorDrainBudgetTest :
                     (receiverFailure.get() is PlaybackTerminalFailure) shouldBe true
                     engineFailure.get() shouldBe receiverFailure.get()
                     bridge.cutCoordinator.failure() shouldBe receiverFailure.get()
-                    sink.gameStateIds.shouldNotBeEmpty()
+                    sink.gameStateIds.size shouldBeGreaterThanOrEqual 5
                     sink.gameStateIds.distinct().size shouldBe sink.gameStateIds.size
                 }
             } finally {
@@ -91,6 +92,41 @@ class CoordinatorDrainBudgetTest :
                         ?.kind shouldBe PendingActionKind.PRIORITY
                     bridge.cutCoordinator.failure() shouldBe null
                     sink.gameStateIds.shouldNotBeEmpty()
+                }
+            } finally {
+                runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
+                engine.join(1_000)
+            }
+        }
+
+        test("a slow synchronization chain below the stop limit may exceed the drain time limit") {
+            val board = startWithBoard { _, _, _ -> }
+            val bridge = board.bridge
+            bridge.cutCoordinator.registerViewer(SeatId(1))
+            bridge.priorityWaitMs = 200
+            val engine =
+                Thread {
+                    runCatching {
+                        repeat(8) {
+                            bridge.actionBridge(SeatId(1)).awaitAction(syncState())
+                            CountDownLatch(1).await(40, TimeUnit.MILLISECONDS)
+                        }
+                        bridge.actionBridge(SeatId(1)).awaitAction(syncState().copy(kind = PendingActionKind.PRIORITY))
+                    }
+                }.also { it.start() }
+            try {
+                bridge.awaitPriorityWithTimeout(1_000) shouldBe true
+                val sink = DrainBudgetSink()
+                val started = System.nanoTime()
+                assertSoftly {
+                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 100, drainStopLimit = 20).sent shouldBe true
+                    System.nanoTime() - started shouldBeGreaterThanOrEqual TimeUnit.MILLISECONDS.toNanos(250)
+                    bridge.cutCoordinator.failure() shouldBe null
+                    bridge
+                        .actionBridge(SeatId(1))
+                        .getPending()
+                        ?.state
+                        ?.kind shouldBe PendingActionKind.PRIORITY
                 }
             } finally {
                 runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
@@ -154,7 +190,7 @@ class CoordinatorDrainBudgetTest :
                 bridge.awaitPriorityWithTimeout(1_000) shouldBe true
                 val sink = DrainBudgetSink()
                 assertSoftly {
-                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0).sent shouldBe true
+                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0, drainStopLimit = 0).sent shouldBe true
                     bridge.cutCoordinator.failure() shouldBe null
                     bridge
                         .actionBridge(SeatId(1))
@@ -189,7 +225,7 @@ class CoordinatorDrainBudgetTest :
                 val pending = checkNotNull(bridge.cutCoordinator.currentBlockingInteraction())
                 val sink = DrainBudgetSink()
                 assertSoftly {
-                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0).sent shouldBe true
+                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0, drainStopLimit = 0).sent shouldBe true
                     bridge.cutCoordinator.failure() shouldBe null
                     bridge.cutCoordinator.currentBlockingInteraction() shouldBe pending
                     bridge.cutCoordinator.submitNumericAnswer(pending.interactionId, pending.gameStateId, 2) shouldBe true
@@ -220,7 +256,7 @@ class CoordinatorDrainBudgetTest :
                 }
                 val sink = DrainBudgetSink()
                 assertSoftly {
-                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 50).sent shouldBe true
+                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 50, drainStopLimit = 0).sent shouldBe true
                     publishing.count shouldBe 0L
                     bridge.cutCoordinator.failure() shouldBe null
                     bridge
@@ -244,7 +280,7 @@ class CoordinatorDrainBudgetTest :
             val sink = DrainBudgetSink()
 
             assertSoftly {
-                drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0).sent shouldBe true
+                drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0, drainStopLimit = 0).sent shouldBe true
                 bridge.cutCoordinator.failure() shouldBe null
                 bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe false
                 sink.messages.any { it.hasGameStateMessage() && it.gameStateMessage.gameInfo.resultsCount > 0 } shouldBe true
@@ -283,7 +319,7 @@ class CoordinatorDrainBudgetTest :
                 engine.join(1_000)
                 failure.get() shouldBe null
                 val terminalSink = DrainBudgetSink()
-                drainCoordinatorBarrier(terminalSink, bridge, SeatId(1), drainTimeoutMs = 0).sent shouldBe true
+                drainCoordinatorBarrier(terminalSink, bridge, SeatId(1), drainTimeoutMs = 0, drainStopLimit = 0).sent shouldBe true
                 terminalSink.messages.any { it.hasGameStateMessage() && it.gameStateMessage.gameInfo.resultsCount > 0 } shouldBe true
             } finally {
                 publishTerminal.countDown()

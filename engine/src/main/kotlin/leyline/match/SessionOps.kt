@@ -38,7 +38,14 @@ internal data class DrainOutcome(
     val progressed: Boolean get() = sent || synchronization == SynchronizationDrain.Completed
 }
 
-/** Deliver committed batches, then release each exact synchronization stop observed at the boundary. */
+/**
+ * Deliver committed batches, then release each exact synchronization stop observed at the boundary.
+ *
+ * The drain terminates once it has run for [drainTimeoutMs] and released at least
+ * [drainStopLimit] synchronization stops. Time alone cannot separate unbounded
+ * automatic work from a finite chain whose AI decisions are slow on the host, so a
+ * chain below the stop limit continues past the time limit.
+ */
 internal fun drainCoordinatorBarrier(
     sink: GreMessageSink,
     bridge: GameBridge,
@@ -46,16 +53,21 @@ internal fun drainCoordinatorBarrier(
     betweenBatches: () -> Unit = {},
     beforeDrain: () -> Unit = {},
     drainTimeoutMs: Long = 180_000L,
+    drainStopLimit: Int = 200,
 ): DrainOutcome {
     val deadlineNanos = System.nanoTime() + drainTimeoutMs * 1_000_000
+    var releasedStops = 0
     var outcome = DrainOutcome(sent = false)
 
     fun remainingMs(): Long {
+        if (releasedStops < drainStopLimit) return bridge.priorityWaitMs
         val remaining = deadlineNanos - System.nanoTime()
         if (remaining <= 0) {
             bridge.cutCoordinator.failDrainUnlessVisibleOrGameOver(
                 seatId,
-                TimeoutException("Synchronization drain exceeded its $drainTimeoutMs ms limit"),
+                TimeoutException(
+                    "Synchronization drain exceeded its $drainTimeoutMs ms limit after $releasedStops synchronization stops",
+                ),
             )
         }
         return (remaining / 1_000_000).coerceAtLeast(1)
@@ -73,7 +85,9 @@ internal fun drainCoordinatorBarrier(
                         ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
                         ?.actionId,
                 drainCommitted = { bridge.cutCoordinator.drain(seatId) },
-                completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
+                completeSynchronization = { actionId ->
+                    bridge.actionBridge(seatId).completeSyncPass(actionId).also { if (it) releasedStops++ }
+                },
                 awaitNext = {
                     MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) {
                         bridge.awaitPriorityWithTimeout(minOf(remainingMs(), bridge.priorityWaitMs))
