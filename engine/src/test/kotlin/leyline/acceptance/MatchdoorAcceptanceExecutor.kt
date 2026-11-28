@@ -11,6 +11,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
+import leyline.testkit.checkNoIndistinguishableOffers
 import leyline.tooling.headless.HeadlessResponseMode
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -60,6 +61,7 @@ class MatchdoorAcceptanceExecutor(
                     harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
                 }
             }
+            harness.bridge.checkNoIndistinguishableOffers()
             onComplete(harness.allMessages.toList())
             return scenario.steps.size
         } finally {

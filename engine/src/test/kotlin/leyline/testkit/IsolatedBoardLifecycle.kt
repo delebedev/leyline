@@ -27,9 +27,14 @@ class IsolatedBoardLifecycle {
     var testCounter: LogicalSequencePlanner = LogicalSequencePlanner()
 
     fun tearDown() {
-        bridge?.shutdown()
+        val finished = bridge
         bridge = null
         testCounter = LogicalSequencePlanner()
+        try {
+            finished?.checkNoIndistinguishableOffers()
+        } finally {
+            finished?.shutdown()
+        }
     }
 
     fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Board = trackResult(Board.startWithBoard(board))

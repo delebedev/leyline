@@ -231,13 +231,14 @@ data class SimClientRunResult(
 }
 
 /**
- * A strict run also fails on any unnamed default answer and on any ability row that disagrees with its Forge
- * ability, whatever the row's failure class.
+ * A strict run also fails on any unnamed default answer, on any ability row that disagrees with its Forge
+ * ability, and on any action catalog that offered indistinguishable actions, whatever the row's failure class.
  */
 fun isStrictFailure(stats: GameStats): Boolean =
     failureClass(stats) in strictFailureClasses ||
         stats.unnamedDefaultAnswers.isNotEmpty() ||
-        stats.abilityRowMismatches.isNotEmpty()
+        stats.abilityRowMismatches.isNotEmpty() ||
+        stats.ambiguousActionCatalogs.isNotEmpty()
 
 private val strictFailureClasses = setOf("exception", "wall-timeout", "validation", "log-error")
 

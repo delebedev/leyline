@@ -77,6 +77,8 @@ data class GameStats(
     val abilityLookupMisses: Map<String, Int> = emptyMap(),
     /** Resolved ability rows that disagree with their Forge ability, keyed `site/card: disagreement`. */
     val abilityRowMismatches: Map<String, Int> = emptyMap(),
+    /** Offered actions the client could not tell apart from an earlier offer, keyed by action shape. */
+    val ambiguousActionCatalogs: Map<String, Int> = emptyMap(),
 )
 
 data class PromptRouteFinding(

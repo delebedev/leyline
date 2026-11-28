@@ -1,5 +1,9 @@
 package leyline.game.bundle
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import forge.card.CardType
 import forge.card.RemoveType
 import forge.game.card.Card
@@ -41,6 +45,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.iid
+import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ProjectionSupplement
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateFrameInput
@@ -52,6 +57,7 @@ import leyline.game.sid
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PhaseSnapshot
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.MechanicSourceFacts
@@ -63,6 +69,7 @@ import leyline.game.state.StaleProjectionTransitionException
 import leyline.testkit.BoardTest
 import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.humanPlayer
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -193,6 +200,7 @@ class BundleBuilderTest :
                 val offers: List<leyline.bridge.handoff.GameActionBridge.ActionOffer>,
                 val grantedEquips: List<leyline.bridge.handoff.GameActionBridge.ActionOffer>,
                 val sourceRows: List<Messages.UniqueAbilityInfo>,
+                val ambiguous: Map<String, Int>,
             )
 
             fun equipCatalog(paladins: Int): EquipCatalog {
@@ -219,7 +227,7 @@ class BundleBuilderTest :
                     prepared.result.gsm.gameObjectsList
                         .single { it.instanceId == hammer }
                         .uniqueAbilitiesList
-                return EquipCatalog(prepared.result.actionOffers, grantedEquips, rows)
+                return EquipCatalog(prepared.result.actionOffers, grantedEquips, rows, bridge.abilityIdentities.ledger.ambiguousCatalogs())
             }
 
             val single = equipCatalog(paladins = 1)
@@ -234,16 +242,12 @@ class BundleBuilderTest :
                 // One grant keeps its existing shape: no occurrence handle.
                 singleActions.shouldHaveSize(1)
                 singleActions.single().uniqueAbilityId shouldBe 0
-                leyline.bridge.coord
-                    .hasAmbiguousActionCatalog(single.offers)
-                    .shouldBeFalse()
+                single.ambiguous shouldBe emptyMap()
 
                 doubleActions.shouldHaveSize(2)
                 doubleActions.map { it.abilityGrpId }.distinct() shouldBe listOf(singleActions.single().abilityGrpId)
                 doubleActions.map { it.uniqueAbilityId }.distinct().shouldHaveSize(2)
-                leyline.bridge.coord
-                    .hasAmbiguousActionCatalog(double.offers)
-                    .shouldBeFalse()
+                double.ambiguous shouldBe emptyMap()
                 // Each grant has its own definition, so the first keeps its unhandled shape and only the repeat
                 // receives a backed occurrence handle.
                 doubleActions[0].uniqueAbilityId shouldBe 0
@@ -270,6 +274,58 @@ class BundleBuilderTest :
                     ) shouldBe true
                 }
             }
+        }
+
+        test("equal grants without occurrence handles reach the request and the state actions as one counted offer") {
+            val game =
+                leyline.bridge.bootstrap.GameBootstrap
+                    .createGame()
+            val bridge = GameBridge(cardRepository = ForgeCardRepository.open())
+            bridge.wrapGame(game)
+            val human = game.humanPlayer
+            repeat(2) { addCard("Puresteel Paladin", human, ZoneType.Battlefield) }
+            addCard("Colossus Hammer", human, ZoneType.Battlefield)
+            addCard("Mox Opal", human, ZoneType.Battlefield)
+            addCard("Mishra's Bauble", human, ZoneType.Battlefield)
+            game.action.checkStateEffects(true)
+            human.getCardsIn(ZoneType.Battlefield).forEach { bridge.instance(it) }
+            val snapshot = SnapshotCapture.run(game, bridge, "test", 0)
+
+            fun Messages.Action.isGrantedEquip(offers: List<leyline.bridge.handoff.GameActionBridge.ActionOffer>) =
+                offers.any { offer ->
+                    offer.action == this &&
+                        (offer.command as? PlayerAction.ActivateAbility)?.ability?.let {
+                            it.hostCard?.name == "Colossus Hammer" && it.keyword?.static != null
+                        } == true
+                }
+
+            // Without the occurrence plan both grants resolve to one row with no handle, so their actions are equal.
+            val ledgerLog = LoggerFactory.getLogger(leyline.game.state.AbilityIdentityLedger::class.java) as Logger
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            ledgerLog.addAppender(appender)
+            val projection =
+                try {
+                    ActionMapper.buildProjectionFromSnapshot(1, snapshot, bridge)
+                } finally {
+                    ledgerLog.detachAppender(appender)
+                }
+            val equips = projection.actions.actionsList.filter { it.isGrantedEquip(projection.offers) }
+            val gsm =
+                GsmBuilder.embedActions(Messages.GameStateMessage.getDefaultInstance(), projection.actions, GsmFrame.from(snapshot), 1)
+
+            assertSoftly {
+                equips.shouldHaveSize(1)
+                projection.offers.count { it.action == equips.single() } shouldBe 1
+                projection.actions.actionsCount shouldBe projection.offers.size
+                gsm.actionsList.count { it.action == ActionMapper.stripActionForGsm(equips.single()) } shouldBe 1
+                bridge.abilityIdentities.ledger
+                    .ambiguousCatalogs()
+                    .values
+                    .sum() shouldBe 1
+                // The two grants have separate definitions but the same shape, so the drop is a warning.
+                appender.list.map { it.level } shouldBe listOf(Level.WARN)
+            }
+            bridge.shutdown()
         }
 
         test("puzzle initial Full embeds distinct activation alternatives backed by its own source rows") {

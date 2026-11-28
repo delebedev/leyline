@@ -280,6 +280,9 @@ class SimClientDriver(
             abilityRowMismatches =
                 harness.bridge.abilityIdentities.ledger
                     .rowMismatches(),
+            ambiguousActionCatalogs =
+                harness.bridge.abilityIdentities.ledger
+                    .ambiguousCatalogs(),
         )
     }
 

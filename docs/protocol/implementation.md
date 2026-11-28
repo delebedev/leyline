@@ -686,6 +686,14 @@ grouped by family, then by entity.
     for cascade and discover. Every other cast permission granted while an
     effect resolves is an `OptionalActionMessage` sourced from the card.
   - Owner: `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`
+- **`compat`** — [Candidate identity](prompts/ActionsAvailableReq.md#candidate-identity), offers that execute different Forge abilities but share one action
+  - Contract: an offered action is identified by its type and the identities
+    that type uses, so the response names exactly one offer.
+  - Leyline: when two offers would carry equal actions, only the first is
+    offered. The dropped action is absent from the request, the state's
+    embedded actions and the executable offers alike, and the ability
+    identity ledger counts the dropped shape.
+  - Owner: `ActionMapper`
 
 #### AssignDamageReq
 

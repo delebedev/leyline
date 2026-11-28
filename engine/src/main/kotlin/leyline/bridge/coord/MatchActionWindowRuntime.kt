@@ -560,9 +560,6 @@ internal class MatchActionWindowRuntime(
                     owner.fail(ex)
                 }
             val promptGsId = result.actionGameStateId ?: result.messages.firstOrNull()?.gameStateId ?: planner.currentGsId()
-            if (hasAmbiguousActionCatalog(result.actionOffers)) {
-                owner.fail(IllegalStateException("Ambiguous action offer catalog"))
-            }
             val created =
                 try {
                     createRuntimeActionWindow(

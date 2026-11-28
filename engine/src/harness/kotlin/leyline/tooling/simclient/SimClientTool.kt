@@ -299,7 +299,7 @@ class SimClientRunner internal constructor(
             completionReason = "wall-timeout",
             offeredWhileUnsureByCard = affordability?.offeredWhileUnsureByCard.orEmpty(),
             offeredThenPaymentFailedByCard = affordability?.offeredThenPaymentFailedByCard.orEmpty(),
-        )
+        ).withIdentityLedger(harness)
     }
 
     private fun exceptionStats(
@@ -326,6 +326,17 @@ class SimClientRunner internal constructor(
             completionReason = "exception",
             offeredWhileUnsureByCard = affordability?.offeredWhileUnsureByCard.orEmpty(),
             offeredThenPaymentFailedByCard = affordability?.offeredThenPaymentFailedByCard.orEmpty(),
+        ).withIdentityLedger(harness)
+    }
+
+    /** A failed row still reports the identity outcomes its game reached, so strict runs see them. */
+    private fun GameStats.withIdentityLedger(harness: MatchFlowHarness?): GameStats {
+        val ledger = runCatching { harness?.bridge?.abilityIdentities?.ledger }.getOrNull() ?: return this
+        return copy(
+            abilityLookupsBySource = ledger.resolvedBySource(),
+            abilityLookupMisses = ledger.missedByReason(),
+            abilityRowMismatches = ledger.rowMismatches(),
+            ambiguousActionCatalogs = ledger.ambiguousCatalogs(),
         )
     }
 
@@ -385,6 +396,13 @@ class SimClientRunner internal constructor(
             }} row(s)",
         )
         lookups.rowMismatches.forEach { (key, count) -> println("  $key = $count") }
+        println(
+            "ambiguousActionCatalogs: ${lookups.ambiguousCatalogs.values.sum()} in ${rows.count {
+                it.stats.ambiguousActionCatalogs
+                    .isNotEmpty()
+            }} row(s)",
+        )
+        lookups.ambiguousCatalogs.forEach { (key, count) -> println("  $key = $count") }
     }
 
     private fun automaticAnswerTotals(rows: List<SimClientRowResult>): Map<String, Int> =

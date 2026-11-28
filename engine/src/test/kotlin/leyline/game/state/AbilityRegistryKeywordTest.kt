@@ -13,11 +13,11 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.coord.hasAmbiguousActionCatalog
 import leyline.bridge.coord.resolveActionOffer
 import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.disambiguateActionCatalog
 import leyline.bridge.types.ForgeCardId
 import leyline.game.InMemoryCardRepository
 import leyline.game.codes.SlotKind
@@ -128,7 +128,7 @@ class AbilityRegistryKeywordTest :
                 offers.size shouldBe 2
                 offers.map { it.action.abilityGrpId } shouldBe data.abilityIds.take(2).map { it.first }
                 offers.map { it.action.uniqueAbilityId } shouldBe listOf(50, 51)
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                bridge.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
             }
             for ((index, offer) in offers.withIndex()) {
                 val selected = checkNotNull(resolveActionOffer(catalog, offer.action)).second
@@ -201,7 +201,7 @@ class AbilityRegistryKeywordTest :
                         forgeAbilityId = ability.id,
                     )
                 }
-            hasAmbiguousActionCatalog(offers) shouldBe false
+            disambiguateActionCatalog(offers).dropped shouldBe emptyList()
             val catalog = offers.mapIndexed { index, offer -> index.toLong() to offer }.groupBy { ActionResponseKey.from(it.second.action) }
             for ((index, offer) in offers.withIndex()) {
                 val response =

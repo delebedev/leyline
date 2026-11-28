@@ -13,7 +13,6 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import leyline.bridge.coord.hasAmbiguousActionCatalog
 import leyline.bridge.coord.resolveActionOffer
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.ActionResponseKey
@@ -177,7 +176,7 @@ class ActionMapperSnapshotTest :
             val command = offer.command.shouldBeInstanceOf<PlayerAction.ActivateMana>()
 
             assertSoftly {
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
                 offer.action.abilityGrpId shouldBe 1003
                 command.abilityId shouldBe 0
                 command.ability?.getOriginalParam("Secondary") shouldBe null
@@ -214,7 +213,7 @@ class ActionMapperSnapshotTest :
                 offers.map { it.action.uniqueAbilityId }.toSet().size shouldBe 2
                 offers.map { it.action.uniqueAbilityId }.toSet() shouldBe projectedAbilities.map { it.id }.toSet()
                 offers.map { it.command.shouldBeInstanceOf<PlayerAction.ActivateAbility>().ability }.toSet().size shouldBe 2
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
             }
 
             for (offer in offers) {
@@ -340,7 +339,7 @@ class ActionMapperSnapshotTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(bolasForgeId)).value
             val offers = projection.offers.filter { it.action.actionType == ActionType.Activate_add3 && it.action.instanceId == iid }
             assertSoftly {
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
                 offers.size shouldBe 4
                 offers.map { it.action.abilityGrpId }.toSet().size shouldBe 4
             }
@@ -393,7 +392,7 @@ class ActionMapperSnapshotTest :
                 copies.size shouldBe 4
                 copies.map { it.action.abilityGrpId }.toSet().size shouldBe 2
                 copies.map { it.action.uniqueAbilityId }.toSet().size shouldBe 4
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
             }
             val catalog = copies.mapIndexed { index, offer -> index.toLong() to offer }.groupBy { ActionResponseKey.from(it.second.action) }
             for (offer in copies) resolveActionOffer(catalog, offer.action)?.second shouldBe offer
@@ -406,7 +405,7 @@ class ActionMapperSnapshotTest :
                     it.action.instanceId == iid && (it.command as? PlayerAction.ActivateAbility)?.ability?.originalAbility != null
                 }
             remaining.size shouldBe 2
-            hasAmbiguousActionCatalog(after.offers) shouldBe false
+            b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
             val rows =
                 handshakeFull(game, b, 1)
                     .gameObjectsList
@@ -434,7 +433,7 @@ class ActionMapperSnapshotTest :
             assertSoftly {
                 actions.size shouldBe 2
                 actions.map { it.abilityGrpId }.toSet() shouldBe setOf(1003, 1005)
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
             }
         }
 
@@ -510,7 +509,7 @@ class ActionMapperSnapshotTest :
                     .map { it.command.shouldBeInstanceOf<PlayerAction.ActivateMana>().ability!! }
                     .single { it.originalMapParams["Amount"] == "2" }
                     .payCosts.costParts.size shouldBe 2
-                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                b.abilityIdentities.ledger.ambiguousCatalogs() shouldBe emptyMap()
             }
         }
 

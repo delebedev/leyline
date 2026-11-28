@@ -4,6 +4,7 @@ import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.DeferredCastCostPlan
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.executionIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.bundle.BundleBuilder
@@ -55,16 +56,6 @@ internal sealed interface ActionWindowStatus {
 }
 
 internal enum class ActionClaimKind { Immediate, Deferred }
-
-private data class ActionExecutionIdentity(
-    val command: PlayerAction,
-    val stackAbilityGrpId: Int?,
-    val forgeAbilityId: Int?,
-    val spellGrpId: Int?,
-)
-
-private fun GameActionBridge.ActionOffer.executionIdentity() =
-    ActionExecutionIdentity(command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
 
 internal fun GameActionBridge.ActionOffer.sourceCardId() =
     when (val value = command) {
@@ -208,12 +199,3 @@ internal fun selectedManaColor(action: Action): Byte? {
         .singleOrNull()
         ?.let(WubrgColorMapping::magicMaskForManaColor)
 }
-
-internal fun hasAmbiguousActionCatalog(offers: List<GameActionBridge.ActionOffer>): Boolean =
-    offers
-        .groupBy { ActionResponseKey.from(it.action) }
-        .values
-        .any { variants ->
-            val identities = variants.map { it.executionIdentity() }.distinct()
-            identities.size > 1 && variants.map { it.action }.distinct().size == 1
-        }

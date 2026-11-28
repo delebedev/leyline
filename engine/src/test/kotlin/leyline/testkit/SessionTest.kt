@@ -141,6 +141,7 @@ abstract class SessionTest(
             try {
                 harness.connect(puzzleText = puzzleText, puzzleResource = puzzleFile, aiScript = aiScript)
                 harness.block()
+                harness.bridge.checkNoIndistinguishableOffers()
             } catch (failure: Throwable) {
                 harness.dumpDiagnostics(name)
                 throw failure
