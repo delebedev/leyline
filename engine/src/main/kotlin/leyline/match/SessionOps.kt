@@ -38,7 +38,17 @@ internal data class DrainOutcome(
     val progressed: Boolean get() = sent || synchronization == SynchronizationDrain.Completed
 }
 
-/** Deliver committed batches, then release each exact synchronization stop observed at the boundary. */
+/**
+ * Deliver committed batches, then release each exact synchronization stop observed at the boundary.
+ *
+ * Two limits end a drain that keeps releasing synchronization stops. Once it has released
+ * [drainStopLimit] stops, it fails after [drainTimeoutMs] in total. At any stop count it
+ * fails after [drainCeilingMs]. Total time alone cannot separate unbounded automatic work
+ * from a finite chain whose AI decisions are slow on the host, so a chain below the stop
+ * limit may run past [drainTimeoutMs]. An endless automatic stream therefore holds the
+ * session lock for at most [drainCeilingMs]. A drain whose engine publishes nothing more
+ * returns without failure when one priority wait expires.
+ */
 internal fun drainCoordinatorBarrier(
     sink: GreMessageSink,
     bridge: GameBridge,
@@ -46,16 +56,30 @@ internal fun drainCoordinatorBarrier(
     betweenBatches: () -> Unit = {},
     beforeDrain: () -> Unit = {},
     drainTimeoutMs: Long = 180_000L,
+    drainStopLimit: Int = 200,
+    drainCeilingMs: Long = 600_000L,
+    nowNanos: () -> Long = System::nanoTime,
 ): DrainOutcome {
-    val deadlineNanos = System.nanoTime() + drainTimeoutMs * 1_000_000
+    val startedNanos = nowNanos()
+    val totalDeadlineNanos = startedNanos + drainTimeoutMs * 1_000_000
+    val ceilingDeadlineNanos = startedNanos + drainCeilingMs * 1_000_000
+    var releasedStops = 0
     var outcome = DrainOutcome(sent = false)
 
     fun remainingMs(): Long {
-        val remaining = deadlineNanos - System.nanoTime()
+        val stopLimitReached = releasedStops >= drainStopLimit
+        val deadlineNanos = if (stopLimitReached) minOf(totalDeadlineNanos, ceilingDeadlineNanos) else ceilingDeadlineNanos
+        val remaining = deadlineNanos - nowNanos()
         if (remaining <= 0) {
+            val limit =
+                if (deadlineNanos == ceilingDeadlineNanos) {
+                    "$drainCeilingMs ms ceiling"
+                } else {
+                    "$drainTimeoutMs ms limit after $releasedStops synchronization stops"
+                }
             bridge.cutCoordinator.failDrainUnlessVisibleOrGameOver(
                 seatId,
-                TimeoutException("Synchronization drain exceeded its $drainTimeoutMs ms limit"),
+                TimeoutException("Synchronization drain exceeded its $limit"),
             )
         }
         return (remaining / 1_000_000).coerceAtLeast(1)
@@ -73,7 +97,9 @@ internal fun drainCoordinatorBarrier(
                         ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
                         ?.actionId,
                 drainCommitted = { bridge.cutCoordinator.drain(seatId) },
-                completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
+                completeSynchronization = { actionId ->
+                    bridge.actionBridge(seatId).completeSyncPass(actionId).also { if (it) releasedStops++ }
+                },
                 awaitNext = {
                     MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) {
                         bridge.awaitPriorityWithTimeout(minOf(remainingMs(), bridge.priorityWaitMs))
