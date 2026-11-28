@@ -24,12 +24,12 @@ import leyline.bridge.types.SeatId
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.snapshot.ActivatedAbilityOccurrence
 import leyline.game.snapshot.AltCostBinding
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.LinkedFaceRole
+import leyline.game.state.AbilityIdentityLedger
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -984,12 +984,12 @@ object ActionMapper {
         val grantedAlternativeGrpId =
             if (rail == null) {
                 GrantedAlternativeCosts.abilityGrpId(sa, player, bridge)
-                    ?: bridge.cardRepository.grantedKeywordAbilityGrpId(sa)?.takeIf { it > 0 }
+                    ?: bridge.abilityIdentities.grantedKeywordAbilityGrpId(sa)?.takeIf { it > 0 }
             } else {
                 null
             }
         when {
-            rail != null -> configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
+            rail != null -> configureZoneCastRailShape(actionBuilder, sa, rail, bound, player, bridge.abilityIdentities.ledger)
             grantedAlternativeGrpId != null -> {
                 actionBuilder.setAlternativeGrpId(grantedAlternativeGrpId)
                 emitAltCostManaCost(actionBuilder, sa, player, abilityGrpIdEcho = grantedAlternativeGrpId)
@@ -1136,13 +1136,14 @@ object ActionMapper {
         rail: ZoneCastRail,
         bound: BoundCard?,
         player: Player,
+        ledger: AbilityIdentityLedger,
     ) {
         val altCosts = bound?.altCosts ?: emptyList()
         val altSource = rail.altGrpIdSource
         val needsCostAware =
             altSource is AltGrpIdSource.FromBoundCard && altSource.lookupMode == LookupMode.CostAware
         val lookupPairs = if (needsCostAware) altCostLookupPairs(sa) else emptyList()
-        val altGrpId = resolveAltGrpId(rail, altCosts, lookupPairs)
+        val altGrpId = resolveAltGrpId(rail, altCosts, lookupPairs, ledger)
         if (altGrpId > 0) actionBuilder.setAlternativeGrpId(altGrpId)
 
         val abilityGrpId =
@@ -1645,9 +1646,13 @@ object ActionMapper {
                 if (rail == null) GrantedAlternativeCosts.abilityGrpId(sa, player, bridge) ?: continue else null
             if (!ActionAvailability.hasLegalTargetsAndModes(sa)) continue
             val (payCostPairs, railAlternativeGrpId) =
-                if (rail != null) computeEffectiveCostForOffer(rail, sa, player, altCosts) else effectiveCostPairs(sa, player) to 0
+                if (rail != null) {
+                    computeEffectiveCostForOffer(rail, sa, player, altCosts, bridge.abilityIdentities.ledger)
+                } else {
+                    effectiveCostPairs(sa, player) to 0
+                }
             val alternativeGrpId =
-                grantedAlternativeGrpId ?: bridge.cardRepository.grantedKeywordAbilityGrpId(sa) ?: railAlternativeGrpId
+                grantedAlternativeGrpId ?: bridge.abilityIdentities.grantedKeywordAbilityGrpId(sa) ?: railAlternativeGrpId
             if (rail?.kind == AltCostKind.EMERGE && alternativeGrpId <= 0) continue
             val canPay = canExecute(sa, player)
             if (!canPay) continue
@@ -1686,13 +1691,14 @@ object ActionMapper {
         sa: SpellAbility,
         player: Player,
         altCosts: List<AltCostBinding>,
+        ledger: AbilityIdentityLedger,
     ): Pair<List<Pair<ManaColor, Int>>, Int> {
         if (rail.kind == AltCostKind.EMERGE) {
-            val alternativeGrpId = resolveAltGrpId(rail, altCosts, emptyList())
+            val alternativeGrpId = resolveAltGrpId(rail, altCosts, emptyList(), ledger)
             val payCostPairs = altCosts.firstOrNull { it.abilityGrpId == alternativeGrpId }?.manaCost.orEmpty()
             return payCostPairs to alternativeGrpId
         }
-        return effectiveCostPairs(sa, player) to resolveAltGrpId(rail, altCosts, altCostLookupPairs(sa))
+        return effectiveCostPairs(sa, player) to resolveAltGrpId(rail, altCosts, altCostLookupPairs(sa), ledger)
     }
 
     private fun effectiveCostPairs(

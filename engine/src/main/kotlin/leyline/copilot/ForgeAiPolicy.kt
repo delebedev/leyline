@@ -265,6 +265,7 @@ class ForgeAiPolicy(
                         cardRepository = bridge.cardRepository,
                         sourceInstanceId = mappedInstanceId,
                         sourceGrpId = grpId,
+                        ledger = bridge.abilityIdentities.ledger,
                     )
                 } else {
                     val actionType = if (sa is LandAbility) ActionType.Play_add3 else ActionType.Activate_add3
@@ -361,8 +362,9 @@ class ForgeAiPolicy(
                         !isSkipped(it) &&
                         (it.grpId == grpId || it.instanceId == mappedInstanceId)
                 }
-            return chooseCastVariant(sa, grpId, bridge.cardRepository, candidates.filter { it.instanceId == mappedInstanceId })
-                ?: chooseCastVariant(sa, grpId, bridge.cardRepository, candidates)
+            val ledger = bridge.abilityIdentities.ledger
+            return chooseCastVariant(sa, grpId, bridge.cardRepository, candidates.filter { it.instanceId == mappedInstanceId }, ledger)
+                ?: chooseCastVariant(sa, grpId, bridge.cardRepository, candidates, ledger)
         }
 
         val hostCard = sa.hostCard ?: return null

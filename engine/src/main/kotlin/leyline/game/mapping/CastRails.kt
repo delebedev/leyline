@@ -5,8 +5,12 @@ import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.isSuspendHandAction
+import leyline.bridge.types.AbilityIdentitySource
+import leyline.bridge.types.AbilityLookup
+import leyline.bridge.types.AbilityLookupMiss
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.AltCostBinding
+import leyline.game.state.AbilityIdentityLedger
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
@@ -412,37 +416,52 @@ internal fun resolveAltGrpId(
     rail: CastRail,
     altCosts: List<AltCostBinding>,
     payCostPairs: List<Pair<ManaColor, Int>>,
-): Int =
+    ledger: AbilityIdentityLedger? = null,
+): Int {
+    val lookup = lookupAltGrpId(rail, altCosts, payCostPairs)
+    ledger?.record(AbilityIdentityLedger.Site.CastRail, lookup)
+    return lookup.valueOrNull() ?: 0
+}
+
+/** The rail's alternative cost row, and whether it is fixed by the rail or read from the card's catalog. */
+internal fun lookupAltGrpId(
+    rail: CastRail,
+    altCosts: List<AltCostBinding>,
+    payCostPairs: List<Pair<ManaColor, Int>>,
+): AbilityLookup<Int> =
     when (rail) {
         is HandWithAltCost ->
             if (rail.useKeywordBaseIdAsAlternative) {
-                rail.kind.keywordBaseId
+                AbilityLookup.Resolved(rail.kind.keywordBaseId, AbilityIdentitySource.RailFixed)
             } else {
-                resolveByMode(altCosts, rail.kind, rail.lookupMode, payCostPairs)
+                lookupByMode(altCosts, rail.kind, rail.lookupMode, payCostPairs)
             }
         is ZoneCastRail ->
             when (val src = rail.altGrpIdSource) {
-                AltGrpIdSource.Universal149 -> 149
-                is AltGrpIdSource.FromBoundCard -> resolveByMode(altCosts, rail.kind, src.lookupMode, payCostPairs)
-                is AltGrpIdSource.Fixed -> src.abilityGrpId
+                AltGrpIdSource.Universal149 -> AbilityLookup.Resolved(149, AbilityIdentitySource.RailFixed)
+                is AltGrpIdSource.FromBoundCard -> lookupByMode(altCosts, rail.kind, src.lookupMode, payCostPairs)
+                is AltGrpIdSource.Fixed -> AbilityLookup.Resolved(src.abilityGrpId, AbilityIdentitySource.RailFixed)
             }
     }
 
-private fun resolveByMode(
+private fun lookupByMode(
     altCosts: List<AltCostBinding>,
     kind: AltCostKind,
     mode: LookupMode,
     payCostPairs: List<Pair<ManaColor, Int>>,
-): Int =
-    when (mode) {
-        LookupMode.CostAgnostic ->
-            altCosts.firstOrNull { it.keywordBaseId == kind.keywordBaseId }?.abilityGrpId ?: 0
-        LookupMode.CostAware ->
-            altCosts
-                .firstOrNull {
-                    it.keywordBaseId == kind.keywordBaseId && it.manaCost.toMap() == payCostPairs.toMap()
-                }?.abilityGrpId ?: 0
-    }
+): AbilityLookup<Int> {
+    val row =
+        when (mode) {
+            LookupMode.CostAgnostic ->
+                altCosts.firstOrNull { it.keywordBaseId == kind.keywordBaseId }?.abilityGrpId
+            LookupMode.CostAware ->
+                altCosts
+                    .firstOrNull {
+                        it.keywordBaseId == kind.keywordBaseId && it.manaCost.toMap() == payCostPairs.toMap()
+                    }?.abilityGrpId
+        }
+    return row?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.RailCatalog) } ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow)
+}
 
 private fun isAirbendMayPlay(sa: SpellAbility): Boolean {
     val mayPlay = sa.mayPlay ?: return false

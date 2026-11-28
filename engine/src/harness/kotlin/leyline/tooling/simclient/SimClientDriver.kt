@@ -271,6 +271,12 @@ class SimClientDriver(
             promptProgressSamples = promptProgress.snapshot(),
             offeredWhileUnsureByCard = affordability.offeredWhileUnsureByCard,
             offeredThenPaymentFailedByCard = affordability.offeredThenPaymentFailedByCard,
+            abilityLookupsBySource =
+                harness.bridge.abilityIdentities.ledger
+                    .resolvedBySource(),
+            abilityLookupMisses =
+                harness.bridge.abilityIdentities.ledger
+                    .missedByReason(),
         )
     }
 

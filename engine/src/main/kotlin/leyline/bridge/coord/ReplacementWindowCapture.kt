@@ -7,8 +7,12 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.ReplacementOptionValue
 import leyline.bridge.handoff.ReplacementWindowValue
 import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.types.AbilityIdentitySource
+import leyline.bridge.types.AbilityLookup
+import leyline.bridge.types.AbilityLookupMiss
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.state.AbilityIdentityLedger
 import leyline.game.state.AbilityRegistry
 
 /** Captures a projectable, keyword-backed replacement window on the engine thread. */
@@ -37,8 +41,21 @@ internal class ReplacementWindowCapture(
                 val grpId = owner.bridge.resolveGrpId(host)
                 if (grpId == 0) return null
                 val cardData = owner.bridge.cardRepository.findByGrpId(grpId) ?: return null
-                val abilityGrpId = owner.bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MADNESS) ?: return null
-                val uniqueAbilityId = AbilityRegistry.uniqueAbilityIdFor(cardData, abilityGrpId) ?: return null
+                val ledger = owner.bridge.abilityIdentities.ledger
+                val abilityGrpId = owner.bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MADNESS)
+                if (abilityGrpId == null) {
+                    ledger.record(AbilityIdentityLedger.Site.Replacement, AbilityLookup.Missing(AbilityLookupMiss.NoRow))
+                    return null
+                }
+                val uniqueAbilityId = AbilityRegistry.uniqueAbilityIdFor(cardData, abilityGrpId)
+                if (uniqueAbilityId == null) {
+                    ledger.record(AbilityIdentityLedger.Site.Replacement, AbilityLookup.Missing(AbilityLookupMiss.NoOccurrence))
+                    return null
+                }
+                ledger.record(
+                    AbilityIdentityLedger.Site.Replacement,
+                    AbilityLookup.Resolved(abilityGrpId, AbilityIdentitySource.KeywordRow),
+                )
                 ReplacementOptionValue(index, hostId, uniqueAbilityId, abilityGrpId)
             }
         if (options.map { it.hostForgeCardId }.distinct().size != options.size) return null

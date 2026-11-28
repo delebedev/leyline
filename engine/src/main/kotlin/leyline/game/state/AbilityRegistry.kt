@@ -10,7 +10,10 @@ import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
 import leyline.bridge.types.AbilityDefinitionRef
+import leyline.bridge.types.AbilityIdentitySource
 import leyline.bridge.types.AbilityKeywordFamily
+import leyline.bridge.types.AbilityLookup
+import leyline.bridge.types.AbilityLookupMiss
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.codes.SlotEntry
@@ -41,6 +44,7 @@ class AbilityRegistry private constructor(
     private val keywordSlotIndices: Map<Int, Int> = emptyMap(),
     private val grantedIds: GrantedAbilityIds = GrantedAbilityIds(),
     private val builtSpellAbilityDefinitions: Set<Int> = emptySet(),
+    private val ledger: AbilityIdentityLedger? = null,
 ) {
     /**
      * True while [card] still exposes the spell ability definitions this registry was built from.
@@ -55,14 +59,19 @@ class AbilityRegistry private constructor(
     }
 
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
-    fun forSpellAbility(ability: SpellAbility): Int? =
-        if (ability.originalAbility != null) {
-            forSpellAbility(ability.originalAbility)
-        } else if (ability.grantorStatic != null) {
-            grantedAbilityGrpId(ability)
-        } else {
-            grantedKeywordAbilityGrpId(ability) ?: forSpellAbility(ability.definitionId)
+    fun forSpellAbility(ability: SpellAbility): Int? = lookupRow(ability).valueOrNull()
+
+    /** The row of a live or copied SpellAbility, and which source on this card answered. */
+    private fun lookupRow(ability: SpellAbility): AbilityLookup<Int> {
+        if (ability.originalAbility != null) return lookupRow(ability.originalAbility)
+        if (ability.grantorStatic != null) {
+            return grantedAbilityGrpId(ability)?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.ContinuousGrant) }
+                ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow)
         }
+        grantedKeywordAbilityGrpId(ability)?.let { return AbilityLookup.Resolved(it, AbilityIdentitySource.GrantedKeyword) }
+        return forSpellAbility(ability.definitionId)?.let { AbilityLookup.Resolved(it, AbilityIdentitySource.Registry) }
+            ?: AbilityLookup.Missing(AbilityLookupMiss.NoRow)
+    }
 
     /** SpellAbility definition ID → abilityGrpId (mana + activated). */
     fun forSpellAbility(definitionId: Int): Int? = resolve(AbilityDefinitionRef.SpellAbility(definitionId))?.abilityGrpId
@@ -148,20 +157,43 @@ class AbilityRegistry private constructor(
             ability: SpellAbility,
             cardDataLookup: (Card) -> CardData?,
             registryLookup: (Card, CardData?) -> AbilityRegistry?,
-        ): ResolvedAbilityIdentity? {
+        ): ResolvedAbilityIdentity? = lookupSpellAbility(ability, cardDataLookup, registryLookup).valueOrNull()
+
+        /**
+         * Look up the original definition's identity and record the outcome in the answering registry's ledger.
+         * A source without catalog data has no registry and so no ledger; that miss is returned but not counted.
+         */
+        fun lookupSpellAbility(
+            ability: SpellAbility,
+            cardDataLookup: (Card) -> CardData?,
+            registryLookup: (Card, CardData?) -> AbilityRegistry?,
+        ): AbilityLookup<ResolvedAbilityIdentity> {
             val original = generateSequence(ability) { it.originalAbility }.last()
+            val definition = AbilityDefinitionRef.SpellAbility(original.definitionId)
             resolutionGrantState(original)?.card?.let { donor ->
-                registryLookup(donor, cardDataLookup(donor))?.resolutionGrantedAbilityGrpId(original)?.let {
-                    return ResolvedAbilityIdentity(AbilityDefinitionRef.SpellAbility(original.definitionId), it)
+                val donorRegistry = registryLookup(donor, cardDataLookup(donor))
+                donorRegistry?.resolutionGrantedAbilityGrpId(original)?.let {
+                    return donorRegistry.recordSpellAbility(
+                        AbilityLookup.Resolved(ResolvedAbilityIdentity(definition, it), AbilityIdentitySource.ResolutionGrant),
+                    )
                 }
             }
             val source = identitySource(ability)
-            val registry = registryLookup(source, cardDataLookup(source)) ?: return null
-            val abilityGrpId = registry.forSpellAbility(ability) ?: return null
-            val definition = AbilityDefinitionRef.SpellAbility(original.definitionId)
-            return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
-                ?: ResolvedAbilityIdentity(definition, abilityGrpId)
+            val registry = registryLookup(source, cardDataLookup(source)) ?: return AbilityLookup.Missing(AbilityLookupMiss.NoCardData)
+            val row =
+                when (val lookup = registry.lookupRow(ability)) {
+                    is AbilityLookup.Missing -> return registry.recordSpellAbility(lookup)
+                    is AbilityLookup.Resolved -> lookup
+                }
+            val identity =
+                registry.resolve(definition)?.takeIf { it.abilityGrpId == row.value }
+                    ?: ResolvedAbilityIdentity(definition, row.value)
+            return registry.recordSpellAbility(AbilityLookup.Resolved(identity, row.via))
         }
+
+        private fun AbilityRegistry.recordSpellAbility(
+            lookup: AbilityLookup<ResolvedAbilityIdentity>,
+        ): AbilityLookup<ResolvedAbilityIdentity> = ledger?.record(AbilityIdentityLedger.Site.SpellAbility, lookup) ?: lookup
 
         /** Immutable identity observed while the caller owns the live Forge graph. */
         data class ActivatedIdentity(
@@ -197,18 +229,22 @@ class AbilityRegistry private constructor(
                 }
             recipientRegistry?.grantedIds?.retain(grantKeys.toSet())
             val original = generateSequence(ability) { it.originalAbility }.last()
-            val uniqueAbilityId =
+            val occurrence =
                 if (abilityGrpId != 0 && cardData != null && grantIndex != null) {
-                    recipientRegistry?.grantedIds?.idFor(grantKeys[grantIndex])
+                    recipientRegistry?.grantedIds?.idFor(grantKeys[grantIndex])?.let {
+                        AbilityLookup.Resolved(it, AbilityIdentitySource.GrantOrdinal)
+                    }
                 } else {
                     recipientRegistry
                         ?.takeIf { abilityGrpId != 0 }
                         ?.keywordSlotIndices
                         ?.get(original.definitionId)
                         ?.takeIf { cardData?.abilityIds?.getOrNull(it)?.first == abilityGrpId }
-                        ?.let { INITIAL_UNIQUE_ABILITY_ID + it }
-                        ?: uniqueAbilityIdFor(cardData, abilityGrpId, abilityGrpId == fallbackAbilityGrpId)
-                }
+                        ?.let { AbilityLookup.Resolved(INITIAL_UNIQUE_ABILITY_ID + it, AbilityIdentitySource.KeywordSlot) }
+                        ?: occurrenceFor(cardData, abilityGrpId, abilityGrpId == fallbackAbilityGrpId)
+                } ?: AbilityLookup.Missing(if (abilityGrpId == 0) AbilityLookupMiss.NoRow else AbilityLookupMiss.NoOccurrence)
+            recipientRegistry?.ledger?.record(AbilityIdentityLedger.Site.Activated, occurrence)
+            val uniqueAbilityId = occurrence.valueOrNull()
             val grant =
                 grantIndex?.let { index ->
                     val (_, timestamp, staticId) = grants[index]
@@ -276,13 +312,19 @@ class AbilityRegistry private constructor(
             cardData: CardData?,
             abilityGrpId: Int,
             fallbackWhenUnmapped: Boolean = false,
-        ): Int? {
+        ): Int? = occurrenceFor(cardData, abilityGrpId, fallbackWhenUnmapped)?.value
+
+        private fun occurrenceFor(
+            cardData: CardData?,
+            abilityGrpId: Int,
+            fallbackWhenUnmapped: Boolean,
+        ): AbilityLookup.Resolved<Int>? {
             if (abilityGrpId == 0) return null
-            if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
+            if (cardData == null) return AbilityLookup.Resolved(INITIAL_UNIQUE_ABILITY_ID, AbilityIdentitySource.CallerFallback)
             val index = cardData.abilityIds.indexOfFirst { it.first == abilityGrpId }
             return when {
-                index >= 0 -> INITIAL_UNIQUE_ABILITY_ID + index
-                fallbackWhenUnmapped -> INITIAL_UNIQUE_ABILITY_ID
+                index >= 0 -> AbilityLookup.Resolved(INITIAL_UNIQUE_ABILITY_ID + index, AbilityIdentitySource.PrintedSlot)
+                fallbackWhenUnmapped -> AbilityLookup.Resolved(INITIAL_UNIQUE_ABILITY_ID, AbilityIdentitySource.CallerFallback)
                 else -> null
             }
         }
@@ -300,6 +342,7 @@ class AbilityRegistry private constructor(
             cardData: CardData,
             grantedKeywordAbilityGrpId: (SpellAbility) -> Int? = { null },
             grantedIds: GrantedAbilityIds = GrantedAbilityIds(),
+            ledger: AbilityIdentityLedger? = null,
         ): AbilityRegistry {
             val abilityIds = cardData.abilityIds
             val builtSpellAbilityDefinitions = card.spellAbilities.mapTo(mutableSetOf()) { it.definitionId }
@@ -318,6 +361,7 @@ class AbilityRegistry private constructor(
                     grantedKeywordAbilityGrpId = grantedKeywordAbilityGrpId,
                     grantedIds = grantedIds,
                     builtSpellAbilityDefinitions = builtSpellAbilityDefinitions,
+                    ledger = ledger,
                 )
             }
 
@@ -397,6 +441,7 @@ class AbilityRegistry private constructor(
                 keywordSlotIndices,
                 grantedIds,
                 builtSpellAbilityDefinitions,
+                ledger,
             )
         }
 

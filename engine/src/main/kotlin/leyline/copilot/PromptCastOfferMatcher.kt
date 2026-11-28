@@ -3,13 +3,15 @@ package leyline.copilot
 import forge.card.CardStateName
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.bridge.types.AbilityLookup
 import leyline.game.data.CardRepository
-import leyline.game.data.grantedKeywordAbilityGrpId
+import leyline.game.data.lookupGrantedKeywordAbility
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.CastDisplayCost
 import leyline.game.mapping.CastRails
-import leyline.game.mapping.resolveAltGrpId
+import leyline.game.mapping.lookupAltGrpId
 import leyline.game.snapshot.BoundCard
+import leyline.game.state.AbilityIdentityLedger
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement
@@ -34,8 +36,9 @@ internal fun choosePromptCastOfferForAbility(
     cardRepository: CardRepository,
     sourceInstanceId: Int,
     sourceGrpId: Int,
+    ledger: AbilityIdentityLedger? = null,
 ): Action? {
-    val variant = expectedCastVariant(sa, sourceGrpId, cardRepository)
+    val variant = expectedCastVariant(sa, sourceGrpId, cardRepository, ledger)
     return choosePromptCastOffer(
         actions = actions,
         sourceInstanceId = sourceInstanceId,
@@ -51,7 +54,8 @@ internal fun chooseCastVariant(
     sourceGrpId: Int,
     cardRepository: CardRepository,
     candidates: List<Action>,
-): Action? = chooseCastActionByVariant(candidates, expectedCastVariant(sa, sourceGrpId, cardRepository))
+    ledger: AbilityIdentityLedger? = null,
+): Action? = chooseCastActionByVariant(candidates, expectedCastVariant(sa, sourceGrpId, cardRepository, ledger))
 
 /**
  * Selects the prompt's original cast action for a Forge-chosen spell ability.
@@ -99,15 +103,19 @@ private fun expectedCastVariant(
     sa: SpellAbility,
     grpId: Int,
     cardRepository: CardRepository,
+    ledger: AbilityIdentityLedger?,
 ): ExpectedCastVariant {
     if (!sa.isSpell) return ExpectedCastVariant.Base
     val rails = CastRails.all.filter { it.saPredicate(sa) }
     if (rails.isEmpty()) return ExpectedCastVariant.Base
     val altCosts = BoundCard.bindAltCosts(cardRepository.findByGrpId(grpId), cardRepository)
     val lookupPairs = ActionMapper.altCostLookupPairs(sa)
+
+    fun <T> AbilityLookup<T>.counted() = also { ledger?.record(AbilityIdentityLedger.Site.CopilotCast, it) }
     val alternativeGrpId =
-        cardRepository.grantedKeywordAbilityGrpId(sa) ?: rails.firstNotNullOfOrNull { rail ->
-            resolveAltGrpId(rail, altCosts, lookupPairs).takeIf { it > 0 }
-        }
+        cardRepository.lookupGrantedKeywordAbility(sa)?.counted()?.valueOrNull()
+            ?: rails.firstNotNullOfOrNull { rail ->
+                lookupAltGrpId(rail, altCosts, lookupPairs).counted().valueOrNull()?.takeIf { it > 0 }
+            }
     return alternativeGrpId?.let(ExpectedCastVariant::Alternative) ?: ExpectedCastVariant.UnresolvedAlternative
 }

@@ -71,6 +71,10 @@ data class GameStats(
     val offeredWhileUnsureByCard: Map<String, Int> = emptyMap(),
     /** Offered actions whose mana payment failed, by card and offering verdict. */
     val offeredThenPaymentFailedByCard: Map<String, Int> = emptyMap(),
+    /** Ability identity lookups that resolved, keyed `site/source`. */
+    val abilityLookupsBySource: Map<String, Int> = emptyMap(),
+    /** Ability identity lookups that found no row, keyed `site/reason`. */
+    val abilityLookupMisses: Map<String, Int> = emptyMap(),
 )
 
 data class PromptRouteFinding(

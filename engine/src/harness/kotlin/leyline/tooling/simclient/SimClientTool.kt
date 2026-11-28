@@ -375,6 +375,10 @@ class SimClientRunner internal constructor(
             println("  ${answer.count} ${answer.askedBy} ${answer.promptType}/${answer.semantic} \"${answer.sampleMessage}\"")
         }
         automaticAnswerTotals(rows).forEach { (rule, count) -> println("automatic $rule = $count") }
+        val lookups = AbilityLookupTotals.of(rows.map { it.stats })
+        println("abilityLookups: ${lookups.bySource.values.sum()} resolved, ${lookups.misses.values.sum()} missed")
+        lookups.bySource.forEach { (key, count) -> println("  resolved $key = $count") }
+        lookups.misses.forEach { (key, count) -> println("  missed $key = $count") }
     }
 
     private fun automaticAnswerTotals(rows: List<SimClientRowResult>): Map<String, Int> =
@@ -407,6 +411,7 @@ class SimClientRunner internal constructor(
                 append("\"affordability\":${AffordabilityTotals.of(result.rows.map { it.stats }).toJson()},")
                 append("\"unnamedDefaultAnswers\":${unnamedDefaultAnswersToJson(unnamedDefaultTotals(result.rows))},")
                 append("\"automaticAnswersByRule\":${mapToJson(automaticAnswerTotals(result.rows))},")
+                append("\"abilityLookups\":${AbilityLookupTotals.of(result.rows.map { it.stats }).toJson()},")
                 append("\"outDir\":${simJsonString(config.outDir.path)}")
                 append('}')
             }
