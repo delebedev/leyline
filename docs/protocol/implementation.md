@@ -1604,9 +1604,14 @@ modes differ:
   `ChoiceResult` and `LinkInfo` as the enum-list form. Forge applies a chosen
   type without an enum value, but no annotation names it to the client;
 - `Native` keeps the restricted enum list and leaves out the types without an
-  enum value, which the player cannot choose.
+  enum value, which the player cannot choose. When no offered type has an
+  enum value, it also sends the named label choice.
 
-- Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`, `StaticChoiceCoordinator.chooseSomeType`, `MatchStaticChoiceInteractionRuntime`
+Either way the choice offers the same types to the engine; only the request
+shape differs. A choice with one offered type or none is answered without a
+prompt.
+
+- Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`, `StaticChoiceWindowMaterializer`, `MatchStaticChoiceInteractionRuntime`
 
 ### Vote
 

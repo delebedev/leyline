@@ -16,7 +16,6 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
-import leyline.config.CostChoicePresentation
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
@@ -39,8 +38,6 @@ class InteractivePromptBridge(
     private val timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
     private val prioritySignal: PrioritySignal? = null,
     private val strict: Boolean = DevCheck.strict,
-    /** The match's label policy; [CostChoicePresentation.ForgeText] hosts render Forge-text choice labels. */
-    val choicePresentation: CostChoicePresentation = CostChoicePresentation.Native,
 ) {
     /**
      * Forge-id → leyline iid lookup. Set by [leyline.game.state.GameBridge]
@@ -992,15 +989,11 @@ data class PromptRequest(
     val unfilteredRefs: List<PromptCandidateRefDto> = emptyList(),
     /** Static enum domain for SelectN prompts whose ids are not game object instanceIds. */
     val staticList: StaticList? = null,
-    /** Per-option static enum values frozen into coordinator-owned StaticChoice windows. */
-    val staticOptionIds: List<Int> = emptyList(),
     /**
-     * Enum list a labelled StaticChoice records its `ChoiceResult` against when the
-     * offered values are prompt indices. Null records no result.
+     * Per-option static enum values frozen into coordinator-owned StaticChoice windows.
+     * A type choice marks a type without an enum value with null.
      */
-    val choiceResultList: StaticList? = null,
-    /** Per-option values in [choiceResultList], aligned with [options]; null when an option has none. */
-    val choiceResultValues: List<Int?> = emptyList(),
+    val staticOptionIds: List<Int?> = emptyList(),
     /** Waterbend mana component carried into its PayCostsReq payment envelope. */
     val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
     /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */

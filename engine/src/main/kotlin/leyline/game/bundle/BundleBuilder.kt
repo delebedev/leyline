@@ -1927,7 +1927,7 @@ class BundleBuilder(
         return finishSettledPrompt(
             frame,
             counter,
-            { context -> staticChoiceWindows.prepare(context, window) },
+            { context -> staticChoiceWindows.prepare(context, window, bridge.engineSettings.costChoicePresentation) },
             { it.bundle.messages },
             gameState = { gsm ->
                 val playerSnapshot =

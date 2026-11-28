@@ -25,25 +25,26 @@ internal object StaticChoiceWindowCapture {
             check(request.staticOptionIds == request.options.indices.map { it + 1 }) { "Named choices require aligned prompt indices" }
         }
         check(request.staticOptionIds.size == request.options.size) { "StaticChoice values must match options" }
-        check(request.staticOptionIds.distinct().size == request.staticOptionIds.size) { "StaticChoice values must be distinct" }
+        val enumValues = request.staticOptionIds.filterNotNull()
+        check(enumValues.distinct().size == enumValues.size) { "StaticChoice values must be distinct" }
+        check(enumValues.size == request.staticOptionIds.size || route.descriptor.kind in LABELLABLE_KINDS) {
+            "Only type choices may offer values without an enum value"
+        }
         check(request.min in 0..request.max && request.max <= request.options.size) { "Invalid StaticChoice cardinality" }
         check(request.defaultIndex in request.options.indices) { "Invalid StaticChoice default option" }
-        check(request.choiceResultList == null || request.staticList == null) { "A choice result list applies to labelled choices" }
-        check(request.choiceResultValues.isEmpty() || request.choiceResultValues.size == request.options.size) {
-            "Choice result values must match options"
-        }
         return StaticChoiceWindowValue(
             kind = route.descriptor.kind,
             staticList = request.staticList,
-            resultList = request.staticList ?: request.choiceResultList,
             sourceForgeAbilityId = request.forgeAbilityId,
             options =
                 request.staticOptionIds.mapIndexed { index, value ->
                     StaticChoiceOptionValue(
                         index,
                         value,
-                        request.options[index].takeIf { route.descriptor.kind == StaticChoiceKind.Named },
-                        resultValue = if (request.staticList != null) value else request.choiceResultValues.getOrNull(index),
+                        request.options[index].takeIf {
+                            route.descriptor.kind == StaticChoiceKind.Named ||
+                                route.descriptor.kind in LABELLABLE_KINDS
+                        },
                     )
                 },
             sourceForgeCardId = request.sourceEntityId?.let(::ForgeCardId),
@@ -52,4 +53,7 @@ internal object StaticChoiceWindowCapture {
             defaultOptionIndex = request.defaultIndex,
         )
     }
+
+    /** Type choices may offer Forge types that have no enum value; projection decides how they are shown. */
+    private val LABELLABLE_KINDS = setOf(StaticChoiceKind.Subtype, StaticChoiceKind.CardType)
 }

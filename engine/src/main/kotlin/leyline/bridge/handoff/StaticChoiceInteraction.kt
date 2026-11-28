@@ -5,18 +5,15 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 data class StaticChoiceOptionValue(
     val originalOptionIndex: Int,
-    val protocolValue: Int,
+    /** Enum value in the window's static list; null for a type that has none and can be offered only by label. */
+    val protocolValue: Int?,
     val label: String? = null,
-    /** Value recorded in the window's result list when this option is chosen; null records nothing. */
-    val resultValue: Int? = null,
 )
 
 /** Immutable materialization input for one static enum SelectN window. */
 data class StaticChoiceWindowValue(
     val kind: StaticChoiceKind,
     val staticList: StaticList?,
-    /** Enum list the choice result is recorded against: [staticList], or a labelled choice's result list. */
-    val resultList: StaticList? = staticList,
     val sourceForgeAbilityId: Int = 0,
     val options: List<StaticChoiceOptionValue>,
     val sourceForgeCardId: ForgeCardId?,

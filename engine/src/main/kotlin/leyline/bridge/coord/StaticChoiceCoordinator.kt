@@ -15,7 +15,6 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.interaction.ConfirmActionPlan
 import leyline.bridge.types.StaticChoiceIds
-import leyline.config.CostChoicePresentation
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
@@ -351,9 +350,8 @@ class StaticChoiceCoordinator(
     }
 
     /**
-     * Offers Forge's [validTypes] as an enum-list choice when every type has a protocol
-     * id. Otherwise a [CostChoicePresentation.ForgeText] host gets every type as a named
-     * label choice, and a [CostChoicePresentation.Native] host gets only the types with an id.
+     * Offers every type in Forge's [validTypes], each with its enum value when it has one.
+     * Projection decides how a type without an enum value is shown.
      */
     fun chooseSomeType(
         kindOfType: String,
@@ -362,44 +360,33 @@ class StaticChoiceCoordinator(
         isOptional: Boolean,
     ): String? {
         val isCardType = kindOfType == "Card"
-        val ordered = if (isCardType) validTypes.toList() else validTypes.sorted()
-        val typeIds = ordered.map { type -> if (isCardType) StaticChoiceIds.cardTypeIdFor(type) else StaticChoiceIds.subtypeIdFor(type) }
-        val idByType = ordered.zip(typeIds).toMap()
-        val labelled = bridge.choicePresentation == CostChoicePresentation.ForgeText && typeIds.any { it == null }
-        val enumList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes
-        val enumSemantic = if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice
+        val types = if (isCardType) validTypes.toList() else validTypes.sorted()
+        val choices =
+            types.map { type -> type to if (isCardType) StaticChoiceIds.cardTypeIdFor(type) else StaticChoiceIds.subtypeIdFor(type) }
 
-        fun request(choices: List<Pair<String, Int>>) =
+        fun request(offered: List<Pair<String, Int?>>) =
             PromptRequest(
                 promptType = "choose_type",
                 message = "Choose a ${kindOfType.lowercase()} type",
-                options = choices.map { it.first },
+                options = offered.map { it.first },
                 min = if (isOptional) 0 else 1,
                 max = 1,
                 defaultIndex = 0,
-                route = PromptRouteResolver.resolve(if (labelled) PromptSemantic.NamedChoice else enumSemantic),
+                route =
+                    PromptRouteResolver.resolve(
+                        if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice,
+                    ),
                 sourceEntityId = sourceEntityId(sa),
-                staticList = enumList.takeUnless { labelled },
-                staticOptionIds = choices.map { it.second },
-                // A labelled pick with an enum id records the same ChoiceResult as the enum-list form.
-                choiceResultList = enumList.takeIf { labelled },
-                choiceResultValues = if (labelled) choices.map { idByType[it.first] } else emptyList(),
+                staticList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes,
+                staticOptionIds = offered.map { it.second },
             )
 
-        // An enum-list choice can show only the types with a protocol id.
-        val choices =
-            if (labelled) {
-                ordered.mapIndexed { index, type -> type to index + 1 }
-            } else {
-                ordered.zip(typeIds).mapNotNull { (type, id) -> id?.let { type to it } }
-            }
         if (choices.size < 2 && !(isOptional && choices.size == 1)) {
-            val answer = if (isOptional) null else choices.singleOrNull()?.first ?: validTypes.firstOrNull()
-            val recorded = if (choices.isEmpty()) validTypes.map { it to 0 } else choices
+            val answer = if (isOptional) null else choices.singleOrNull()?.first
             bridge.recordAutomaticAnswer(
-                request(recorded),
+                request(choices),
                 AutomaticAnswerRule.NoChoiceAmongShownOptions,
-                listOfNotNull(answer?.let { recorded.indexOfFirst { pair -> pair.first == it } }),
+                listOfNotNull(answer?.let { choices.indexOfFirst { pair -> pair.first == it } }),
             )
             return answer
         }
