@@ -66,6 +66,27 @@ private val DISCOVER_PUZZLE =
     ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
     """.trimIndent()
 
+private val ETALI_PUZZLE =
+    """
+    [metadata]
+    Name:Etali free casts past a cascade spell
+    Goal:Survive
+    Turns:5
+    Difficulty:Easy
+    Description:Etali exiles Bloodbraid Elf and Llanowar Elves. Casting Bloodbraid Elf first leaves a cascade spell above the resolving Etali trigger when Llanowar Elves is offered.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Etali, Primal Conqueror
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+    humanlibrary=Bloodbraid Elf;Forest;Forest;Mountain;Mountain;Forest;Mountain;Forest;Mountain;Forest;Mountain;Forest
+    ailibrary=Llanowar Elves;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+    """.trimIndent()
+
 /**
  * End-to-end coverage for the trigger-ability projection on the Stack zone.
  *
@@ -88,6 +109,35 @@ class CascadeDiscoverProjectionTest :
     SessionTest({
 
         tags(BoardTag)
+
+        session(
+            "Etali free cast after a cascade spell keeps the optional cast prompt",
+            forgeCatalog = true,
+            puzzle = ETALI_PUZZLE,
+        ) {
+            castSpellByName("Etali, Primal Conqueror") shouldBe true
+            passUntil(maxPasses = 8) { hasPendingSelectNPrompt() } shouldBe true
+            val bloodbraid = human.getZone(forge.game.zone.ZoneType.Exile).cards.single { it.name == "Bloodbraid Elf" }
+            respondToSelectN(listOf(bridge.instanceId(bloodbraid)))
+            passUntil(maxPasses = 4) { hasPendingSelectNPrompt() } shouldBe true
+
+            val elves = ai.getZone(forge.game.zone.ZoneType.Exile).cards.single { it.name == "Llanowar Elves" }
+            holdNextOptionalAction()
+            val beforeElves = messageSnapshot()
+            respondToSelectN(listOf(bridge.instanceId(elves)))
+            val offer = messagesSince(beforeElves).last { it.hasOptionalActionMessage() }
+            offer.prompt.parametersList
+                .single()
+                .numberValue shouldBe bridge.instanceId(elves)
+            messagesSince(beforeElves).none {
+                it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL
+            } shouldBe true
+
+            respondToOptionalAction(accept = true)
+            val battlefield = human.getZone(forge.game.zone.ZoneType.Battlefield)
+            passUntil(maxPasses = 12) { battlefield.cards.any { it.name == "Llanowar Elves" } } shouldBe true
+            isGameOver() shouldBe false
+        }
 
         session(
             "Discover free cast declines unchosen kicker despite available mana",
