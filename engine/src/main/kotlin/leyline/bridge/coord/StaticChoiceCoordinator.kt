@@ -382,7 +382,10 @@ class StaticChoiceCoordinator(
                 staticOptionIds = choices.map { it.second },
             )
 
-        val shown = if (choices.isEmpty()) emptyList() else bridge.shownStaticChoiceOptions(request())
+        // Without a published window, only types with an enum value count as shown.
+        val shown =
+            bridge.publishingStaticChoiceRuntime()?.takeIf { choices.isNotEmpty() }?.shownOptions(request())
+                ?: choices.indices.filter { choices[it].second != null }
         if (shown.size < 2 && !(isOptional && shown.size == 1)) {
             val answer = if (isOptional) null else (shown.firstOrNull() ?: 0).let { choices.getOrNull(it)?.first }
             bridge.recordAutomaticAnswer(
