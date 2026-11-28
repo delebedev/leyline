@@ -272,8 +272,9 @@ class EffectCardChoiceTest :
                 }
                 passUntilResolved()
                 assertSoftly {
-                    ("Grizzly Bears" in human.getZone(ZoneType.Battlefield).cards.map { it.name }) shouldBe cast
-                    ("Llanowar Elves" in human.getZone(ZoneType.Battlefield).cards.map { it.name }) shouldBe false
+                    "Grizzly Bears" should beInZoneOf(if (cast) ZoneType.Battlefield else ZoneType.Library, human)
+                    "Llanowar Elves" should beMissingFrom(ZoneType.Battlefield, human)
+                    "Llanowar Elves" should beInZoneOf(ZoneType.Library, human)
                     human.getZone(ZoneType.Library).cards.size shouldBe if (cast) 5 else 6
                 }
             }
