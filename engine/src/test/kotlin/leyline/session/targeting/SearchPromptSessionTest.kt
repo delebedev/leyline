@@ -187,10 +187,15 @@ class SearchPromptSessionTest :
         ) {
             val bolt = human.library.iid("Lightning Bolt")
             val search = castSpellUntilSearchReq("Mystical Teachings")
-            allMessages.none { it.hasSearchFromGroupsReq() }.shouldBeTrue()
-            search.itemsSoughtList.toSet() shouldBe setOf(bolt, human.library.iid("Brainstorm"))
+            assertSoftly {
+                allMessages.none { it.hasSearchFromGroupsReq() }.shouldBeTrue()
+                search.itemsSoughtList.toSet() shouldBe setOf(bolt, human.library.iid("Brainstorm"))
+            }
             respondToSearch(listOf(bolt))
             passUntilResolved()
-            human.hand.card("Lightning Bolt").name shouldBe "Lightning Bolt"
+            assertSoftly {
+                human.hand.card("Lightning Bolt").name shouldBe "Lightning Bolt"
+                human.library.card("Brainstorm").name shouldBe "Brainstorm"
+            }
         }
     })

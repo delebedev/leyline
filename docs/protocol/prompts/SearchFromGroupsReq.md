@@ -71,5 +71,7 @@ in [the message stream](../stream/messages.md#Messages.resp-correlates).
 
 - How does the client find nothing: an empty `groups`, or a group row with no
   `ids`?
+- When one group has no legal card, is the request a `SearchFromGroupsReq`
+  with that row empty, one without that row, or a plain `SearchReq`?
 - Which other `groupingStyle` values are sent, and what do they allow?
 - Is the source ever an ability, and what then is `sourceId`?

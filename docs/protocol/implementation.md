@@ -870,10 +870,12 @@ grouped by family, then by entity.
   - Leyline: uses `3713` for every grouped search.
   - Owner: `SearchWindowMaterializer`
 - **`compat`** — [Request](prompts/SearchFromGroupsReq.md#request)
-  - Contract: the legal cards are split into groups; the request for a group
-    with no legal card is an open point.
-  - Leyline: sends an ordinary SearchReq when the legal cards do not form two
-    non-empty, disjoint groups.
+  - Contract: the legal cards are split into groups; the request when one
+    group has no legal card is an
+    [open point](prompts/SearchFromGroupsReq.md#open-points).
+  - Leyline: sends an ordinary SearchReq when one group has no legal card. A
+    card that qualifies for both groups also gets an ordinary SearchReq, so the
+    request never breaks `SearchFromGroupsReq.disjoint-groups`.
   - Owner: `GroupedSearchClassifier`
 
 #### SearchReq
