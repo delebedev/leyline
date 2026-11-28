@@ -3,6 +3,7 @@ package leyline.game.data
 import forge.StaticData
 import forge.card.CardRules
 import forge.card.ICardFace
+import forge.game.keyword.Equip
 import forge.game.keyword.Keyword
 import forge.localinstance.properties.ForgeConstants
 import leyline.bridge.bootstrap.GameBootstrap
@@ -210,6 +211,26 @@ class ForgeCardRepository private constructor(
         ): String {
             val description = params["SpellDescription"] ?: params["TriggerDescription"] ?: params["Description"] ?: raw
             return params["RoomName"]?.let { "$it — $description" } ?: description
+        }
+
+        /**
+         * A keyword row's player-facing text is the keyword title Forge renders, such as `Equip {3}` or
+         * `Crew 1`, with Equip's optional recipient label (`Equip Wizard {1}`) placed as Forge's equip
+         * ability describes it. A title that needs a live host card, such as a cost equal to its mana
+         * cost, falls back to the keyword name.
+         */
+        private fun keywordAbilityText(raw: String): String {
+            val instance = Keyword.getInstance(raw)
+            val name = instance.keyword.toString()
+            val title = runCatching { instance.title }.getOrNull() ?: return name
+            if (instance !is Equip) return title
+            val recipient =
+                raw
+                    .split(':')
+                    .getOrNull(3)
+                    ?.trim()
+                    ?.takeUnless { it.isEmpty() || it.startsWith("Flavor ") }
+            return recipient?.let { title.replaceFirst(name, "$name $it") } ?: title
         }
 
         private fun definitionKeywords(face: ICardFace): List<String> =
@@ -557,7 +578,8 @@ class ForgeCardRepository private constructor(
                     .keyword
                     .takeIf { kind == SlotKind.Keyword && it != Keyword.UNDEFINED }
                     ?.toString()
-            rows.registerAbilityLocalization(id, AbilityLocalization(abilityText(parsed, raw), mana, keyword))
+            val text = if (keyword != null) keywordAbilityText(raw) else abilityText(parsed, raw)
+            rows.registerAbilityLocalization(id, AbilityLocalization(text, mana, keyword))
             val effect = modalEffect(raw, variables)
             effect["Choices"]
                 ?.split(",")
