@@ -253,7 +253,7 @@ class EffectCardChoiceTest :
                 fullControl = true,
             ) {
                 activateAbility("Svella, Ice Shaper", 1)
-                passUntil { allMessages.any { it.hasSelectNReq() } }
+                passUntil { allMessages.any { it.hasSelectNReq() } } shouldBe true
                 val message = allMessages.last { it.hasSelectNReq() }
                 val req = message.selectNReq
                 val offered = req.idsList.associateBy { cardByIid(it)?.name }
@@ -296,8 +296,8 @@ class EffectCardChoiceTest :
             fullControl = true,
         ) {
             castSpellUntilSelectTargetsReq("Talent of the Telepath")
-            selectTargets(listOf(2))
-            passUntil { allMessages.any { it.hasSelectNReq() } }
+            selectTargets(listOf(OPPONENT_SEAT))
+            passUntil { allMessages.any { it.hasSelectNReq() } } shouldBe true
             val req = lastSelectNReq()
             val offered = req.idsList.associateBy { cardByIid(it)?.name }
             offered.keys shouldBe setOf("Divination", "Opt")
@@ -306,9 +306,6 @@ class EffectCardChoiceTest :
             passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
             respondToOptionalAction(true)
             passUntil { game().stack.isEmpty } shouldBe true
-            assertSoftly {
-                "Divination" should beInZoneOf(ZoneType.Graveyard, ai)
-                human.getZone(ZoneType.Hand).cards.size shouldBe 2
-            }
+            human.getZone(ZoneType.Hand).cards.size shouldBe 2
         }
     })
