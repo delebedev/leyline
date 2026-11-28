@@ -198,7 +198,7 @@ internal class MatchModalChoiceRuntime(
     ) {
         if (!pending.value.isVote && selectedGrpIds.singleOrNull() != null) {
             owner.bridge.recordSelectedModalAbilityGrpId(
-                pending.value.sourceForgeCardId,
+                pending.value.rootForgeAbilityId,
                 selectedGrpIds.single(),
             )
         }

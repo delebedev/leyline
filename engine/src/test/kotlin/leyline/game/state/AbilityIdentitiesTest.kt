@@ -3,6 +3,7 @@ package leyline.game.state
 import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.keyword.Keyword
+import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.maps.shouldContainKey
@@ -12,6 +13,7 @@ import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.AbilityIdentitySource
 import leyline.bridge.types.AbilityLookup
 import leyline.bridge.types.AbilityLookupMiss
+import leyline.game.snapshot.PendingTriggerCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.TestCardInjector
 
@@ -79,12 +81,12 @@ class AbilityIdentitiesTest :
             }
         }
 
-        test("a prompt answers with the modal choice recorded for its source") {
+        test("a prompt answers with the mode chosen for its own invocation only") {
             val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val ninja = TestCardInjector.inject(bridge, 1, "Ninja of the Deep Hours", ZoneType.Hand).card
             val activated = ninja.spellAbilities.single { it.isActivatedAbility && !it.isManaAbility() }
             val identities = bridge.abilityIdentities
-            identities.recordSelectedModalAbilityGrpId(leyline.bridge.types.ForgeCardId(ninja.id), MODAL_ROW)
+            identities.recordSelectedModalAbilityGrpId(activated.id, MODAL_ROW)
 
             val lookup = identities.lookupPrompt(ninja, activated)
 
@@ -92,6 +94,52 @@ class AbilityIdentitiesTest :
                 (lookup as AbilityLookup.Resolved).via shouldBe AbilityIdentitySource.ModalChoice
                 lookup.value.abilityGrpId shouldBe MODAL_ROW
                 identities.ledger.resolvedBySource()["prompt/modal-choice"] shouldBe 1
+                identities.lookupPrompt(ninja, ninja.firstSpellAbility).valueOrNull()?.abilityGrpId shouldNotBe MODAL_ROW
+            }
+        }
+
+        test("a chosen mode stays until its root ability has been on the stack and left it") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val ninja = TestCardInjector.inject(bridge, 1, "Ninja of the Deep Hours", ZoneType.Hand).card
+            val activated = ninja.spellAbilities.single { it.isActivatedAbility && !it.isManaAbility() }
+            val identities = bridge.abilityIdentities
+
+            fun mode() = identities.lookupPrompt(ninja, activated).valueOrNull()?.abilityGrpId
+            identities.recordSelectedModalAbilityGrpId(activated.id, MODAL_ROW)
+
+            identities.retainPendingTriggerAbilityIdentities(emptySet(), emptySet())
+            val beforeStack = mode()
+            identities.retainPendingTriggerAbilityIdentities(emptySet(), setOf(activated.id))
+            val onStack = mode()
+            identities.retainPendingTriggerAbilityIdentities(emptySet(), emptySet())
+
+            assertSoftly {
+                beforeStack shouldBe MODAL_ROW
+                onStack shouldBe MODAL_ROW
+                mode() shouldNotBe MODAL_ROW
+            }
+        }
+
+        test("a modal trigger's chosen mode retires once its wrapped entry leaves the stack") {
+            val board = startWithBoard { _, human, _ -> addCard("Charming Prince", human, ZoneType.Battlefield) }
+            val (bridge, game, _) = board
+            val prince = board.human.battlefield.card("Charming Prince")
+            val trigger = prince.triggers.single { it.overridingAbility != null }
+            val wrapped = WrappedAbility(trigger, trigger.overridingAbility, board.human)
+            val modal = wrapped.wrappedAbility.rootAbility
+            val identities = bridge.abilityIdentities
+            identities.recordSelectedModalAbilityGrpId(modal.id, MODAL_ROW)
+
+            game.stack.addAndUnfreeze(wrapped)
+            PendingTriggerCapture.run(game, bridge)
+            val onStack = identities.lookupPrompt(prince, modal).valueOrNull()?.abilityGrpId
+            game.stack.remove(game.stack.first())
+            PendingTriggerCapture.run(game, bridge)
+
+            assertSoftly {
+                PendingTriggerCapture.stackRootAbilityIds(game) shouldBe emptySet()
+                onStack shouldBe MODAL_ROW
+                identities.lookupPrompt(prince, modal).valueOrNull()?.abilityGrpId shouldNotBe MODAL_ROW
             }
         }
     }) {

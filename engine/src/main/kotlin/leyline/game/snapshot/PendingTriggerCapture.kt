@@ -3,6 +3,7 @@ package leyline.game.snapshot
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.trigger.Trigger
+import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
@@ -18,9 +19,16 @@ internal object PendingTriggerCapture {
     ): List<PendingTriggerSnapshot> {
         val delayedTriggers = game.triggerHandler.delayedTriggersSnapshot
         val pending = delayedTriggers.mapNotNull { trigger -> captureDelayedTrigger(trigger, bridge) }
-        bridge.retainPendingTriggerAbilityIdentities(delayedTriggers.map { it.id }.toSet())
+        bridge.retainPendingTriggerAbilityIdentities(delayedTriggers.map { it.id }.toSet(), stackRootAbilityIds(game))
         return pending + captureParadigmTriggers(game, bridge)
     }
+
+    /** Root ability ids on the stack. A trigger's entry wraps the ability its mode is chosen for, so it is unwrapped. */
+    fun stackRootAbilityIds(game: Game): Set<Int> =
+        game.stack.mapTo(mutableSetOf()) { entry ->
+            val ability = entry.spellAbility
+            ((ability as? WrappedAbility)?.wrappedAbility ?: ability).rootAbility.id
+        }
 
     private fun captureDelayedTrigger(
         trigger: Trigger,
@@ -31,7 +39,7 @@ internal object PendingTriggerCapture {
         val sourceForgeCardId = ForgeCardId(sourceCard.id)
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         val sourceAbilityGrpId =
-            bridge.resolvePendingTriggerAbilityIdentity(trigger.id, sourceForgeCardId) {
+            bridge.resolvePendingTriggerAbilityIdentity(trigger.id, spawningAbility.rootAbility.id) {
                 bridge.resolveSpawningTriggerAbilityGrpId(trigger)
             } ?: return null
         val policy =

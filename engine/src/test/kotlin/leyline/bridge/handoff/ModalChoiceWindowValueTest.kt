@@ -30,6 +30,7 @@ class ModalChoiceWindowValueTest :
             sourceForgeCardId = source,
             sourceCardGrpId = 9001,
             sourceForgeAbilityId = 44,
+            rootForgeAbilityId = 44,
             parentGrpId = 9000,
             ctoGrpId = 9001,
             ctoId = 2,
