@@ -6,7 +6,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.testkit.SessionTest
-import leyline.testkit.lostPlays
+import leyline.testkit.shouldHaveNoLostPlays
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /** A modal double-faced commander offers each castable face from the command zone. */
@@ -30,7 +30,7 @@ class MdfcZoneCastTest :
             puzzle = puzzle,
             offerDiff = true,
         ) {
-            bridge.offerDiffDiagnostics.snapshot().lostPlays() shouldBe emptyList()
+            bridge.offerDiffDiagnostics.snapshot().shouldHaveNoLostPlays()
             val iid = instanceIdOf("Valki, God of Lies", zone = ZoneType.Command)
             val actions =
                 allMessages

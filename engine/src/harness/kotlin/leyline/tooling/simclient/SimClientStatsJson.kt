@@ -52,7 +52,7 @@ fun statsToJson(
         append("\"promptRouteFindings\":${routeFindingsToJson(stats.promptRouteFindings)},")
         append("\"unnamedDefaultAnswers\":${unnamedDefaultAnswersToJson(stats.unnamedDefaultAnswers)},")
         append("\"automaticAnswersByRule\":${mapToJson(stats.automaticAnswersByRule)},")
-        append("\"offerDiff\":${OfferDiffReport.toJson(stats.offerDiff)},")
+        stats.offerDiff?.let { append("\"offerDiff\":${OfferDiffReport.toJson(it)},") }
         append("\"simFindings\":${simFindingsToJson(stats.simFindings)},")
         append("\"promptProgressSamples\":${promptProgressToJson(stats.promptProgressSamples)},")
         append("\"aiTimeoutsByDecision\":${mapToJson(stats.aiTimeoutsByDecision)},")

@@ -8,8 +8,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.testkit.SessionTest
-import leyline.testkit.lostPlays
 import leyline.testkit.performAction
+import leyline.testkit.shouldHaveNoLostPlays
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -58,7 +58,7 @@ class MorphSessionTest :
                         .cards
                         .single { it.isFaceDown }
                 val faceDownIid = bridge.instanceId(faceDown)
-                bridge.offerDiffDiagnostics.snapshot().lostPlays() shouldBe emptyList()
+                bridge.offerDiffDiagnostics.snapshot().shouldHaveNoLostPlays()
                 val turnUp =
                     offers().firstOrNull {
                         it.actionType == ActionType.SpecialTurnFaceUp_add3 && it.instanceId == faceDownIid

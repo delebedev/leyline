@@ -131,11 +131,7 @@ class OfferDiffTest :
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Hand)
                 }
-            val forest =
-                board.human
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .single { it.name == "Forest" }
+            val forest = board.human.hand.card("Forest")
             val land = LandAbility(forest, forest.currentState).also { it.activatingPlayer = board.human }
             board.human.addLandPlayedThisTurn()
             val forge = OfferDiff.forgeEnumeration(board.game, board.human)

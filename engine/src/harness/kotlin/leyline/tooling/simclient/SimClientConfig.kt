@@ -244,8 +244,14 @@ fun isStrictFailure(stats: GameStats): Boolean =
         stats.unnamedDefaultAnswers.isNotEmpty() ||
         stats.abilityRowMismatches.isNotEmpty() ||
         stats.ambiguousActionCatalogs.isNotEmpty() ||
-        stats.offerDiff.unnamed.isNotEmpty() ||
-        stats.offerDiff.failures.isNotEmpty()
+        stats.offerDiff
+            ?.unnamed
+            .orEmpty()
+            .isNotEmpty() ||
+        stats.offerDiff
+            ?.failures
+            .orEmpty()
+            .isNotEmpty()
 
 private val strictFailureClasses = setOf("exception", "wall-timeout", "validation", "log-error")
 

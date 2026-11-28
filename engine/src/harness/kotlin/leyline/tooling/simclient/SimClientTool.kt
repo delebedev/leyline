@@ -415,8 +415,14 @@ class SimClientRunner internal constructor(
         if (config.offerDiff) OfferDiffReport.printSummary(OfferDiffReport.totals(rows.map { it.stats }))
     }
 
-    private fun offerDiffSnapshot(harness: MatchFlowHarness?): OfferDiffDiagnostics.Snapshot =
-        runCatching { harness?.bridge?.offerDiffDiagnostics?.snapshot() }.getOrNull() ?: OfferDiffDiagnostics.Snapshot.Empty
+    private fun offerDiffSnapshot(harness: MatchFlowHarness?): OfferDiffDiagnostics.Snapshot? =
+        runCatching {
+            harness
+                ?.bridge
+                ?.takeIf { it.engineSettings.dev.offerDiff }
+                ?.offerDiffDiagnostics
+                ?.snapshot()
+        }.getOrNull()
 
     private fun automaticAnswerTotals(rows: List<SimClientRowResult>): Map<String, Int> =
         rows

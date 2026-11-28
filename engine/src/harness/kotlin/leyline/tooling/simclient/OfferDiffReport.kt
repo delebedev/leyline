@@ -13,7 +13,7 @@ internal object OfferDiffReport {
     fun totals(stats: List<GameStats>): OfferDiffDiagnostics.Snapshot {
         val findings =
             stats
-                .flatMap { it.offerDiff.findings }
+                .flatMap { it.offerDiff?.findings.orEmpty() }
                 .groupingBy { it.key }
                 .aggregate { _, acc: OfferDiffDiagnostics.Finding?, finding, _ ->
                     acc?.copy(windows = acc.windows + finding.windows) ?: finding
@@ -21,11 +21,15 @@ internal object OfferDiffReport {
                 .sortedWith(compareBy({ it.key.bucket }, { it.key.rule?.name ?: "" }, { it.key.card }, { it.key.apiType }))
         val failures =
             stats
-                .flatMap { it.offerDiff.failures.entries }
-                .groupingBy { it.key }
+                .flatMap {
+                    it.offerDiff
+                        ?.failures
+                        ?.entries
+                        .orEmpty()
+                }.groupingBy { it.key }
                 .fold(0) { total, entry -> total + entry.value }
                 .toSortedMap()
-        return OfferDiffDiagnostics.Snapshot(stats.sumOf { it.offerDiff.windows }, findings, failures)
+        return OfferDiffDiagnostics.Snapshot(stats.sumOf { it.offerDiff?.windows ?: 0 }, findings, failures)
     }
 
     fun toJson(snapshot: OfferDiffDiagnostics.Snapshot): String =
